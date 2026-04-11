@@ -25,6 +25,8 @@ const StepEvidence   = lazy(() => import("./StepEvidence.jsx"));
 const StepExport     = lazy(() => import("./StepExport.jsx"));
 const AdminDashboard  = lazy(() => import("./AdminDashboard.jsx"));
 const KanbanDashboard = lazy(() => import("./KanbanDashboard.jsx"));
+const LoginPage       = lazy(() => import("./LoginPage.jsx"));
+const UserManagement  = lazy(() => import("./UserManagement.jsx"));
 
 // ── Completion checks per step ───────────────────────────────────
 function stepDone(step, survey, checklist = DEFAULT_CHECKLIST) {
@@ -146,7 +148,7 @@ function LogoSlot({ value, onChange, title }) {
 }
 
 // ── Top bar ──────────────────────────────────────────────────────
-function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggleAdmin, onToggleKanban, checklist = DEFAULT_CHECKLIST }) {
+function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggleAdmin, onToggleKanban, checklist = DEFAULT_CHECKLIST, currentUser, onLogout }) {
   const r = survey.responses || {};
   const crit = checklist.filter(i=>(r[i.id]?.score||0)===1).length;
   const maj  = checklist.filter(i=>(r[i.id]?.score||0)===2).length;
@@ -218,6 +220,13 @@ function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggl
         <Btn v="ghost" sz="sm" onClick={onToggleAdmin}>
           {adminMode ? "← Về khảo sát" : "👑 Admin"}
         </Btn>
+        {currentUser && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 4, padding: "4px 12px", background: `${C.bg3}80`, borderRadius: 8, border: `1px solid ${C.bd1}` }}>
+            <span style={{ fontSize: 14, color: C.tealL, fontWeight: 600 }}>{currentUser.displayName || currentUser.username}</span>
+            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: `${C.blue}20`, color: C.blueL, fontWeight: 600 }}>{currentUser.role}</span>
+            {onLogout && <button onClick={onLogout} style={{ background: "none", border: "none", color: C.t2, cursor: "pointer", fontSize: 16, padding: "0 4px" }} title="Đăng xuất">🚪</button>}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -259,7 +268,7 @@ function LoadSurveyDropdown({ onLoadList, onSelect, apiBase }) {
 }
 
 // ── Sidebar ──────────────────────────────────────────────────────
-function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave, saveLoading, onLoadList, onLoadOne, onNewSurvey, apiUrl, surveyId, apiInfo, onOpenAdminTab }) {
+function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave, saveLoading, onLoadList, onLoadOne, onNewSurvey, apiUrl, surveyId, apiInfo, onOpenAdminTab, onOpenUserManagement }) {
   return (
     <div style={{
       width: 260,
@@ -340,11 +349,13 @@ function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave,
           { id: "export", label: "Form Export báo cáo", icon: "📄" },
           { id: "calendar", label: "Quản trị Lịch & Jobs", icon: "🗓️", kanban: true },
           { id: "telegram", label: "Cấu hình Telegram", icon: "📣", kanban: true },
+          { id: "user_management", label: "Quản trị người dùng", icon: "👥", userMgmt: true },
         ].map((m) => (
           <button
             key={m.id}
             type="button"
             onClick={() => {
+              if (m.userMgmt && onOpenUserManagement) return onOpenUserManagement();
               if (onOpenAdminTab) onOpenAdminTab(m.id, m.kanban);
             }}
             style={{
@@ -441,6 +452,36 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
   const [checklist, setChecklist] = useState(DEFAULT_CHECKLIST);
   const autoSaveTimerRef = useRef(null);
   const lastSavedRef = useRef(null);
+  const [userManagementMode, setUserManagementMode] = useState(false);
+
+  // ── Auth state ──
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem("gap_token") || null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("gap_user")); } catch { return null; }
+  });
+
+  const handleLogin = useCallback(async (username, password) => {
+    const explicit = base(initApi);
+    const fallback = typeof window !== "undefined" ? `${window.location.protocol}//${window.location.host}`.replace(/\/$/, "") : "";
+    const b = explicit || fallback;
+    const res = await fetch(`${b}/api/auth/login`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Đăng nhập thất bại");
+    setAuthToken(data.token);
+    setCurrentUser(data.user);
+    localStorage.setItem("gap_token", data.token);
+    localStorage.setItem("gap_user", JSON.stringify(data.user));
+  }, [initApi]);
+
+  const handleLogout = useCallback(() => {
+    setAuthToken(null);
+    setCurrentUser(null);
+    localStorage.removeItem("gap_token");
+    localStorage.removeItem("gap_user");
+  }, []);
 
   // Auto-save đồng bộ DB mỗi khi dữ liệu thay đổi (sau khi nhập modal/form)
   useEffect(() => {
@@ -779,6 +820,44 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
 
   const cur = STEPS[step];
 
+  // ── Login Gate: Hiển thị trang đăng nhập nếu chưa login ──
+  if (!authToken || !currentUser) {
+    return (
+      <>
+        <style>{GLOBAL_CSS}</style>
+        <Suspense fallback={<div style={{ minHeight: "100vh", background: C.bg0 }} />}>
+          <LoginPage onLogin={handleLogin} />
+        </Suspense>
+      </>
+    );
+  }
+
+  // ── User Management Mode ──
+  if (userManagementMode) {
+    return (
+      <>
+        <style>{GLOBAL_CSS}</style>
+        <div style={{ minHeight: "100vh", background: C.bg0 }}>
+          <TopBar
+            step={0} total={1}
+            survey={survey} setSurvey={setSurvey}
+            adminMode={false} kanbanMode={false}
+            onToggleAdmin={() => { setUserManagementMode(false); setAdminMode(true); }}
+            onToggleKanban={() => { setUserManagementMode(false); setKanbanMode(true); }}
+            checklist={checklist}
+            currentUser={currentUser} onLogout={handleLogout}
+          />
+          <div style={{ padding: "24px 32px 32px" }}>
+            <SectionHeader icon="👥" title="Quản trị người dùng" badge="CRUD · Dashboard · Bảo mật" />
+            <Suspense fallback={<div style={{ color: C.t2, fontSize: 15 }}>Đang tải…</div>}>
+              <UserManagement apiUrl={apiUrl} token={authToken} currentUser={currentUser} />
+            </Suspense>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   if (kanbanMode) {
     return (
       <>
@@ -839,6 +918,8 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
           adminMode={adminMode}
           kanbanMode={false}
           checklist={checklist}
+          currentUser={currentUser}
+          onLogout={handleLogout}
           onToggleKanban={() => setKanbanMode(true)}
           onToggleAdmin={() => {
             setAdminInitialTab("surveys");
@@ -869,6 +950,11 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
                 setAdminMode(true);
                 setKanbanMode(false);
               }
+            }}
+            onOpenUserManagement={() => {
+              setUserManagementMode(true);
+              setAdminMode(false);
+              setKanbanMode(false);
             }}
           />
           <div style={{

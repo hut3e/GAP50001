@@ -1,6 +1,7 @@
 /**
  * ISO 50001 GAP Survey — Backend server
  * MongoDB + Express + Socket.IO, routes: surveys, evidence, gap
+ * Security: Helmet, Rate-limit, JWT Auth, Protected uploads
  */
 const http = require("http");
 const path = require("path");
@@ -10,6 +11,8 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const { Server } = require("socket.io");
 const fs = require("fs");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 
 /** Lấy địa chỉ IP LAN (IPv4) của máy chủ để điện thoại cùng mạng có thể truy cập */
 function getLocalNetworkIP() {
@@ -35,6 +38,8 @@ const { UPLOAD_ROOT, ensureDir } = require("./uploadConfig");
 const Evidence = require("./models/Evidence");
 const Survey = require("./models/Survey");
 const scheduler = require("./services/scheduler");
+const authRoutes = require("./routes/auth");
+const { authRequired, authOptional } = require("./middleware/auth");
 
 const PORT = process.env.PORT || 5002;
 const MONGODB_URI =
@@ -43,19 +48,50 @@ const MONGODB_URI =
 const MONGO_OPTIONS = { serverSelectionTimeoutMS: 8000, maxPoolSize: 10 };
 
 const app = express();
+
+// ── Security Hardening ──
+app.use(helmet({
+  contentSecurityPolicy: false, // SPA frontend
+  crossOriginEmbedderPolicy: false,
+}));
+app.disable("x-powered-by");
+
+// Rate limiting cho login (chống brute force)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 phút
+  max: 20, // Tối đa 20 lần thử
+  message: { error: "Quá nhiều lần thử đăng nhập. Vui lòng đợi 15 phút." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(cors({ origin: "*" }));
 app.use(express.json({ limit: "20mb" }));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-app.use("/api/surveys", surveyRoutes);
-app.use("/api/surveys/:surveyId/evidence", evidenceRoutes);
-app.use("/api/iso50001/gap", gapRoutes);
-app.use("/api/iso50001/gap/checklist", checklistRoutes);
-app.use("/api/iso50001/gap/dropdowns", dropdownRoutes);
-app.use("/api/notifications", notificationRoutes);
-app.use("/api/clients", require("./routes/clients"));
-app.use("/api/auditors", require("./routes/auditors"));
-app.use("/api/jobs", require("./routes/jobs"));
+// Bảo vệ thư mục uploads — yêu cầu auth hoặc chỉ cho phép file hợp lệ
+app.use("/uploads", (req, res, next) => {
+  // Chỉ cho phép truy cập file có đuôi ảnh/document
+  const ext = path.extname(req.path).toLowerCase();
+  const allowed = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".doc", ".docx", ".xls", ".xlsx"];
+  if (!allowed.includes(ext)) return res.status(403).json({ error: "Truy cập không được phép." });
+  // Chặn directory traversal
+  if (req.path.includes("..")) return res.status(403).json({ error: "Path không hợp lệ." });
+  next();
+}, express.static(path.join(__dirname, "uploads"), { dotfiles: "deny" }));
+
+// Auth routes (public: login, protected: users CRUD)
+app.use("/api/auth", loginLimiter, authRoutes);
+
+// API routes — bảo vệ bằng auth (optional cho backward compatibility)
+app.use("/api/surveys", authOptional, surveyRoutes);
+app.use("/api/surveys/:surveyId/evidence", authOptional, evidenceRoutes);
+app.use("/api/iso50001/gap", authOptional, gapRoutes);
+app.use("/api/iso50001/gap/checklist", authOptional, checklistRoutes);
+app.use("/api/iso50001/gap/dropdowns", authOptional, dropdownRoutes);
+app.use("/api/notifications", authOptional, notificationRoutes);
+app.use("/api/clients", authOptional, require("./routes/clients"));
+app.use("/api/auditors", authOptional, require("./routes/auditors"));
+app.use("/api/jobs", authOptional, require("./routes/jobs"));
 
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
@@ -163,6 +199,10 @@ async function start() {
 
     // Khởi tạo PostgreSQL
     await pgService.initDB();
+
+    // Seed default admin user (chỉ tạo nếu chưa có user nào)
+    const { seedDefaultAdmin } = require("./routes/auth");
+    await seedDefaultAdmin();
   } catch (err) {
     console.error("MongoDB connection error:", err.message);
     console.error("→ Đảm bảo MongoDB đang chạy và cổng cấu hình không bị xung đột.");
