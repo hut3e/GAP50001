@@ -1,0 +1,1091 @@
+/**
+ * ISO 50001 GAP — Survey CRUD API (MongoDB)
+ */
+const express = require("express");
+const mongoose = require("mongoose");
+const Survey = require("../models/Survey");
+const { checkAndSendEvents } = require("../services/surveyEvents");
+const { syncSurveyToPostgres } = require("../services/postgres");
+const Job = require("../models/Job");
+const Evidence = require("../models/Evidence");
+const ExcelJS = require("exceljs");
+const { GAP_CHECKLIST } = require("../gap.constants");
+const path = require("path");
+const fs = require("fs");
+
+async function syncSurveyToJob(survey) {
+  try {
+    if (!survey.audit_plan || !survey.audit_plan.from_date) return;
+    const ap = survey.audit_plan;
+    const auditors = (ap.auditors || []).map(a => a.name || a).filter(Boolean).join(", ");
+    
+    // Convert to native Dates
+    const start_date = new Date(ap.from_date);
+    const end_date = ap.to_date ? new Date(ap.to_date) : start_date;
+    
+    // Ignore invalid dates
+    if (isNaN(start_date.getTime())) return;
+    
+    const payload = {
+      title: `[Kế hoạch GAP] ${survey.client?.name || "Khách hàng"} - ${survey.meta?.ref_no || ""}`,
+      assignee: auditors,
+      start_date,
+      end_date,
+      survey_id: survey._id,
+    };
+    
+    await Job.findOneAndUpdate(
+      { survey_id: survey._id },
+      { $set: payload },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.error("[syncSurveyToJob] Error:", err);
+  }
+}
+
+const router = express.Router();
+
+function mongoConnected() {
+  return mongoose.connection.readyState === 1;
+}
+
+function requireMongo(req, res, next) {
+  if (!mongoConnected()) {
+    return res.status(503).json({
+      error: "MongoDB chưa kết nối. Khởi động MongoDB (cổng 27017) và khởi động lại backend.",
+      code: "MONGO_DISCONNECTED",
+    });
+  }
+  next();
+}
+
+// GET /api/surveys/ref/:ref_no — by ref_no (phải đặt trước /:id)
+router.get("/ref/:ref_no", requireMongo, async (req, res) => {
+  try {
+    const doc = await Survey.findOne({ "meta.ref_no": req.params.ref_no }).lean();
+    if (!doc) return res.status(404).json({ error: "Survey not found" });
+    res.json(doc);
+  } catch (err) {
+    const msg = err.message || "";
+    if (/buffering|connection|timeout|ECONNREFUSED|MongoNetworkError/i.test(msg))
+      return res.status(503).json({ error: "MongoDB chưa kết nối hoặc phản hồi chậm.", code: "MONGO_DISCONNECTED" });
+    res.status(500).json({ error: msg });
+  }
+});
+
+function safeRegex(str) {
+  try {
+    return new RegExp(String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  } catch (_) {
+    return null;
+  }
+}
+
+// GET /api/surveys — list (optional ?client= & ?ref_no=)
+router.get("/", requireMongo, async (req, res) => {
+  try {
+    const { client, ref_no, limit = 50 } = req.query;
+    const q = {};
+    if (client && String(client).trim()) {
+      const re = safeRegex(client);
+      if (re) q["client.name"] = re;
+    }
+    if (ref_no && String(ref_no).trim()) {
+      const re = safeRegex(ref_no);
+      if (re) q["meta.ref_no"] = re;
+    }
+    const list = await Survey.find(q).sort({ createdAt: -1 }).limit(Number(limit)).lean();
+    res.json(list);
+  } catch (err) {
+    console.error("[surveys list]", err);
+    const msg = err.message || "";
+    if (/buffering|connection|timeout|ECONNREFUSED|MongoNetworkError/i.test(msg))
+      return res.status(503).json({ error: "MongoDB chưa kết nối hoặc phản hồi chậm.", code: "MONGO_DISCONNECTED" });
+    res.status(500).json({ error: msg || "Lỗi tải danh sách phiên." });
+  }
+});
+
+// GET /api/surveys/:id/export-excel
+router.get("/:id/export-excel", requireMongo, async (req, res) => {
+  try {
+    const survey = await Survey.findById(req.params.id).lean();
+    if (!survey) return res.status(404).json({ error: "Survey not found" });
+
+    // Fetch images linked to this survey
+    const images = await Evidence.find({ surveyId: survey._id, type: "image", source: { $ne: "document" } }).lean();
+
+    // Mapping evidence by context id
+    const imagesByZoneId = {};
+    const imagesByEqId = {};
+    const imagesByClauseId = {};
+    images.forEach(img => {
+      const c = img.context || {};
+      const clauseId = img.clauseId || c.clause;
+      
+      if (c.equipment) {
+        if (!imagesByEqId[c.equipment]) imagesByEqId[c.equipment] = [];
+        imagesByEqId[c.equipment].push(img);
+      } else if (c.zone) {
+        if (!imagesByZoneId[c.zone]) imagesByZoneId[c.zone] = [];
+        imagesByZoneId[c.zone].push(img);
+      }
+      
+      if (clauseId) {
+        if (!imagesByClauseId[clauseId]) imagesByClauseId[clauseId] = [];
+        imagesByClauseId[clauseId].push(img);
+      }
+    });
+
+    // Load Template
+    const templatePath = path.resolve(__dirname, "../templates/Template_Export_Excel.xlsx");
+    if (!fs.existsSync(templatePath)) {
+      return res.status(500).json({ error: "Template_Export_Excel.xlsx not found in backend/templates directory" });
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(templatePath);
+    const sheet = workbook.getWorksheet(1);
+    
+    // Cập nhật ngày khảo sát cho tiêu đề Excel
+    const dateStr = survey.meta?.survey_date ? ` (${survey.meta.survey_date})` : "";
+    const titleCell = sheet.getCell('A1');
+    if (titleCell) {
+      titleCell.value = `TỔNG HỢP HÌNH ẢNH, KHUYẾN NGHỊ ĐỢT KHẢO SÁT${dateStr}`;
+    }
+
+    // Prepare rows
+    let rowIndex = 3; // Data starts at row 3
+    let stt = 1;
+
+    const rowItems = []; // flatten site_assessments
+    (survey.site_assessments || []).forEach(zone => {
+      // Zone level notes if any
+      if (zone.notes && String(zone.notes).trim()) {
+        rowItems.push({
+          type: 'zone',
+          zoneObj: zone,
+          id: zone.id,
+          name1: zone.name || "Khu vực",
+          name2: "Đánh giá chung khu vực",
+          finding: zone.notes || "",
+          rec: "",
+          images: imagesByZoneId[zone.id] || []
+        });
+      }
+      
+      // Equipment level
+      (zone.equipment || []).forEach(eq => {
+        rowItems.push({
+          type: 'equipment',
+          zoneObj: zone,
+          eqObj: eq,
+          id: eq.id,
+          name1: zone.name || "",
+          name2: eq.name || "",
+          finding: eq.finding || "",
+          rec: eq.recommendation || "",
+          images: imagesByEqId[eq.id] || []
+        });
+      });
+    });
+
+    // Cào dữ liệu Khuyến nghị (Action Plan) theo Clause
+    const actionPlanByClauseId = {};
+    (survey.action_plan || []).forEach(ap => {
+      if (ap.clause) actionPlanByClauseId[ap.clause] = ap.action;
+    });
+
+    // Gắn thêm dữ liệu các Điểu khoản (Clauses)
+    GAP_CHECKLIST.forEach(item => {
+      const resp = (survey.responses || {})[item.id];
+      const imgs = [ ...(imagesByClauseId[item.id] || []), ...(imagesByClauseId[item.clause] || []) ];
+      
+      // Xoá mảng để nếu vòng lặp đi ngang qua sub-clause tiếp theo (e.g. 10.2.2) thì không in lại ảnh cũ
+      delete imagesByClauseId[item.id];
+      delete imagesByClauseId[item.clause];
+
+      const note = resp && resp.note ? String(resp.note).trim() : "";
+      const rec = actionPlanByClauseId[item.id] ? String(actionPlanByClauseId[item.id]).trim() : "";
+      
+      if (imgs.length > 0) {
+        // Tách mỗi ảnh thành 1 dòng để đảm bảo không xót bất cứ ảnh nào
+        imgs.forEach((img, index) => {
+          rowItems.push({
+            type: 'clause',
+            id: item.id,
+            name1: `Điều khoản ${item.clause}`,
+            name2: `${item.id} - ${item.title}`,
+            finding: index === 0 ? note : "", // Chỉ in Hiện trạng 1 lần ở dòng đầu
+            rec: index === 0 ? rec : "", // Chỉ in Khuyến nghị 1 lần
+            images: [img], // Mỗi dòng giữ 1 ảnh
+            imgNote: img.note || img.originalName || "" // Ghi chú của ảnh
+          });
+        });
+      } else if (note.length > 0 || rec.length > 0) {
+        // Không có ảnh nhưng có text
+        rowItems.push({
+          type: 'clause',
+          id: item.id,
+          name1: `Điều khoản ${item.clause}`,
+          name2: `${item.id} - ${item.title}`,
+          finding: note,
+          rec: rec,
+          images: [],
+          imgNote: ""
+        });
+      }
+    });
+
+    for (const item of rowItems) {
+      const row = sheet.getRow(rowIndex);
+      row.getCell(1).value = stt++;
+      row.getCell(2).value = item.name1;
+      row.getCell(3).value = item.name2;
+      row.getCell(4).value = { richText: [{ text: item.finding }] }; // use richText for wraps
+      row.getCell(5).value = { richText: [{ text: item.rec }] };
+      row.getCell(7).value = { richText: [{ text: item.imgNote || "" }] }; // Set Ghi chú của Cột 7
+
+      // Style setting (wrap text, center STT)
+      row.getCell(1).alignment = { vertical: 'middle', horizontal: 'center' };
+      row.getCell(2).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+      row.getCell(3).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+      row.getCell(4).alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+      row.getCell(5).alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+      row.getCell(7).alignment = { vertical: 'top', horizontal: 'left', wrapText: true }; // Ghi chú
+
+      // Insert Image into Column 6 (F)
+      if (item.images && item.images.length > 0) {
+        const img = item.images[0];
+        const imgPath = path.resolve(__dirname, "../uploads", img.path || `${img.surveyId}/${img.filename}`);
+        if (fs.existsSync(imgPath)) {
+          let extension = img.filename.split('.').pop().toLowerCase();
+          if (extension === 'jpg') extension = 'jpeg'; // exceljs uses jpeg
+          
+          try {
+            const imageId = workbook.addImage({
+              filename: imgPath,
+              extension: extension === 'png' ? 'png' : 'jpeg',
+            });
+            
+            // We want to insert the image into Col F (index 5, 0-indexed column 5)
+            sheet.addImage(imageId, {
+               tl: { col: 5.1, row: rowIndex - 1 + 0.1 },
+               ext: { width: 140, height: 110 }
+            });
+            row.height = 100; // Set row height to easily fit image
+          } catch(e) {
+            console.error("Error adding image to excel", e);
+          }
+        }
+      }
+
+      // Add borders
+      for(let c = 1; c <= 7; c++) {
+        row.getCell(c).border = {
+          top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'}
+        };
+      }
+      
+      rowIndex++;
+    }
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename=Export_Excel_${survey.meta?.ref_no || 'GAP'}.xlsx`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    if (err.name === "CastError") return res.status(400).json({ error: "Invalid id" });
+    const msg = err.message || "";
+    console.error("[surveys export excel]", err);
+    res.status(500).json({ error: msg || "Lỗi tạo báo cáo Excel." });
+  }
+});
+router.get("/:id", requireMongo, async (req, res) => {
+  try {
+    const doc = await Survey.findById(req.params.id).lean();
+    if (!doc) return res.status(404).json({ error: "Survey not found" });
+    res.json(doc);
+  } catch (err) {
+    if (err.name === "CastError") return res.status(400).json({ error: "Invalid id" });
+    const msg = err.message || "";
+    if (/buffering|connection|timeout|ECONNREFUSED|MongoNetworkError/i.test(msg))
+      return res.status(503).json({ error: "MongoDB chưa kết nối hoặc phản hồi chậm.", code: "MONGO_DISCONNECTED" });
+    res.status(500).json({ error: msg || "Lỗi tải phiên." });
+  }
+});
+
+// POST /api/surveys — create (tạo DB iso50001gap khi ghi document đầu tiên)
+router.post("/", requireMongo, async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!body.meta?.ref_no) return res.status(400).json({ error: "meta.ref_no required" });
+    const clientName = body.client?.name != null ? String(body.client.name).trim() : "";
+    if (!clientName) return res.status(400).json({ error: "client.name required" });
+    const existing = await Survey.findOne({ "meta.ref_no": body.meta.ref_no }).maxTimeMS(15000);
+    if (existing) return res.status(409).json({ error: "ref_no already exists", id: existing._id });
+    const survey = await Survey.create(body);
+    const surveyLean = survey.toObject ? survey.toObject() : survey;
+    // Real-time Telegram notification hook (no await to prevent blocking)
+    checkAndSendEvents(null, surveyLean);
+    // Real-time Postgres synchronization
+    syncSurveyToPostgres(surveyLean);
+    // Sync to Job collection for Calendar visualization
+    syncSurveyToJob(surveyLean);
+    res.status(201).json(survey);
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: "ref_no duplicate" });
+    console.error("[surveys POST]", err);
+    const msg = err.message || "";
+    if (/buffering|connection|timeout|ECONNREFUSED|MongoNetworkError/i.test(msg))
+      return res.status(503).json({ error: "MongoDB chưa kết nối hoặc phản hồi chậm.", code: "MONGO_DISCONNECTED" });
+    res.status(500).json({ error: msg || "Lỗi tạo phiên." });
+  }
+});
+
+// PUT /api/surveys/:id — update
+router.put("/:id", requireMongo, async (req, res) => {
+  try {
+    const oldSurvey = await Survey.findById(req.params.id);
+    if (!oldSurvey) return res.status(404).json({ error: "Survey not found" });
+
+    // Cần copy trạng thái cũ để check Telegram changes trước khi bị biến đổi
+    const originalSurveyLean = oldSurvey.toObject();
+
+    // Core Fix: Strip _id and immutable timestamps from req.body
+    const updateData = { ...req.body };
+    delete updateData._id;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
+    delete updateData.__v;
+
+    // Must use .save() so Mongoose accepts object keys containing dots (e.g. '9.3.1') inside Mixed schema
+    Object.assign(oldSurvey, updateData);
+    
+    // Explicitly reassign Nested arrays to trigger Mongoose reactivity safely
+    if (Array.isArray(updateData.travel_logs)) {
+      oldSurvey.travel_logs = updateData.travel_logs;
+      oldSurvey.markModified("travel_logs");
+    }
+    if (Array.isArray(updateData.hotel_logs)) {
+      oldSurvey.hotel_logs = updateData.hotel_logs;
+      oldSurvey.markModified("hotel_logs");
+    }
+
+    // Explicitly mark Mixed fields as modified before saving
+    if ("responses" in updateData) oldSurvey.markModified("responses");
+    if ("risk_assessments" in updateData) oldSurvey.markModified("risk_assessments");
+    if ("process_gaps" in updateData) oldSurvey.markModified("process_gaps");
+    if ("risk_items" in updateData) oldSurvey.markModified("risk_items");
+    if ("logistics_trips" in updateData) oldSurvey.markModified("logistics_trips");
+
+    await oldSurvey.save();
+    
+    // Convert to plain object for the hook & response
+    const surveyLean = oldSurvey.toObject();
+
+    // Real-time Telegram notification hook
+    checkAndSendEvents(originalSurveyLean, surveyLean);
+    // Real-time Postgres synchronization
+    syncSurveyToPostgres(surveyLean);
+    // Sync to Job collection for Calendar visualization
+    syncSurveyToJob(surveyLean);
+    res.json(surveyLean);
+  } catch (err) {
+    if (err.name === "CastError") return res.status(400).json({ error: "Invalid id" });
+    console.error("[surveys PUT]", err);
+    const msg = err.message || "";
+    if (/buffering|connection|timeout|ECONNREFUSED|MongoNetworkError/i.test(msg))
+      return res.status(503).json({ error: "MongoDB chưa kết nối hoặc phản hồi chậm.", code: "MONGO_DISCONNECTED" });
+    res.status(500).json({ error: msg || "Lỗi cập nhật phiên." });
+  }
+});
+
+// PATCH /api/surveys/:id/kanban-status — cập nhật trạng thái Kanban
+router.patch("/:id/kanban-status", requireMongo, async (req, res) => {
+  try {
+    const { status } = req.body || {};
+    const VALID = ["planning", "in_progress", "review", "completed", "overdue"];
+    if (!status || !VALID.includes(status)) {
+      return res.status(400).json({ error: `status phải là một trong: ${VALID.join(", ")}` });
+    }
+    const oldSurvey = await Survey.findById(req.params.id).lean();
+
+    const survey = await Survey.findByIdAndUpdate(
+      req.params.id,
+      { $set: { kanban_status: status } },
+      { new: true, runValidators: false, maxTimeMS: 10000 }
+    ).lean();
+    if (!survey) return res.status(404).json({ error: "Survey not found" });
+    
+    // Real-time Telegram config for status change
+    checkAndSendEvents(oldSurvey, survey);
+    // Real-time Postgres synchronization
+    syncSurveyToPostgres(survey);
+
+    // Emit realtime qua Socket.IO nếu có
+    const io = req.app?.get("io");
+    if (io) io.emit("kanban:status-changed", { id: survey._id, status, survey });
+    res.json({ ok: true, id: survey._id, status, survey });
+  } catch (err) {
+    if (err.name === "CastError") return res.status(400).json({ error: "Invalid id" });
+    const msg = err.message || "";
+    if (/buffering|connection|timeout|ECONNREFUSED|MongoNetworkError/i.test(msg))
+      return res.status(503).json({ error: "MongoDB chưa kết nối.", code: "MONGO_DISCONNECTED" });
+    res.status(500).json({ error: msg });
+  }
+});
+
+// DELETE /api/surveys/:id
+router.delete("/:id", requireMongo, async (req, res) => {
+  try {
+    const survey = await Survey.findByIdAndDelete(req.params.id);
+    if (!survey) return res.status(404).json({ error: "Survey not found" });
+    res.json({ deleted: true, id: req.params.id });
+  } catch (err) {
+    if (err.name === "CastError") return res.status(400).json({ error: "Invalid id" });
+    const msg = err.message || "";
+    if (/buffering|connection|timeout|ECONNREFUSED|MongoNetworkError/i.test(msg))
+      return res.status(503).json({ error: "MongoDB chưa kết nối hoặc phản hồi chậm.", code: "MONGO_DISCONNECTED" });
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.get("/:id/export-lite-docx", requireMongo, async (req, res) => {
+  try {
+    const survey = await Survey.findById(req.params.id).lean();
+    if (!survey) return res.status(404).json({ error: "Survey not found" });
+
+    const { GAP_CHECKLIST } = require("../gap.constants");
+    const { generateGapReportLite } = require("../gap.docx.lite.js");
+
+    const images = await Evidence.find({ surveyId: survey._id, type: "image", source: { $ne: "document" } }).lean();
+    const imagesByEqId = {};
+    images.forEach(img => {
+      const c = img.context || {};
+      if (c.equipment) {
+        if (!imagesByEqId[c.equipment]) imagesByEqId[c.equipment] = [];
+        imagesByEqId[c.equipment].push(img);
+      }
+    });
+
+    const buffer = await generateGapReportLite(survey, GAP_CHECKLIST, imagesByEqId);
+
+    const filename = `Lite_Report_${survey.meta?.ref_no || "GAP"}.docx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+    res.send(buffer);
+  } catch (err) {
+    if (err.name === "CastError") return res.status(400).json({ error: "Invalid id" });
+    const msg = err.message || "";
+    console.error("[surveys export lite docx]", err);
+    res.status(500).json({ error: msg || "Lỗi tạo báo cáo Lite DOCX." });
+  }
+});
+
+router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
+  try {
+    const survey = await Survey.findById(req.params.id).lean();
+    if (!survey) return res.status(404).json({ error: "Survey not found" });
+
+    // Fetch images linked to this survey
+    const images = await Evidence.find({ surveyId: survey._id, type: "image", source: { $ne: "document" } }).lean();
+
+    const imagesByEqId = {};
+    images.forEach(img => {
+      const c = img.context || {};
+      if (c.equipment) {
+        if (!imagesByEqId[c.equipment]) imagesByEqId[c.equipment] = [];
+        imagesByEqId[c.equipment].push(img);
+      }
+    });
+
+    const d = survey;
+    d.client = d.client || {};
+    d.verifier = d.verifier || {};
+    d.site_assessments = Array.isArray(d.site_assessments) ? d.site_assessments : [];
+    d.meters = Array.isArray(d.meters) ? d.meters : [];
+    d.energy_details = Array.isArray(d.client.energy_details) ? d.client.energy_details : [];
+    
+    let auditors = Array.isArray(d.audit_plan?.auditors) && d.audit_plan.auditors.length > 0 ? d.audit_plan.auditors : [];
+    if (auditors.length === 0) {
+      if (d.verifier?.lead) auditors.push({ name: d.verifier.lead, role: 'Trưởng đoàn', certificate: d.verifier?.cert_no || '' });
+      if (d.verifier?.team) {
+         d.verifier.team.split(';').map(s=>s.trim()).filter(Boolean).forEach(t => {
+             auditors.push({ name: t, role: 'Thành viên', certificate: '' });
+         });
+      }
+    }
+    const contactPersons = Array.isArray(d.client.contact_persons) ? d.client.contact_persons : [];
+    
+    // BASIC INFO
+    let basicHtml = `
+      <h3>1. THÔNG TIN CHUNG VỀ DOANH NGHIỆP PHÁT THẢI / SỬ DỤNG NĂNG LƯỢNG</h3>
+      <table>
+        <tr><th width="30%">Tên công ty:</th><td contenteditable="true">${d.client.name||"—"}</td></tr>
+        <tr><th>Địa chỉ:</th><td contenteditable="true">${d.client.address||"—"}</td></tr>
+        <tr><th>Người đại diện pháp luật:</th><td contenteditable="true">${d.client.representative_name||"—"} - ${d.client.representative_position||"—"}</td></tr>
+        <tr><th>Người liên hệ:</th><td contenteditable="true">${contactPersons.map(c => `${c.full_name||""} - ${c.phone||""} - ${c.email||""}`).join("<br/>")||"—"}</td></tr>
+        <tr><th>Sản phẩm / Dịch vụ chính:</th><td contenteditable="true">${d.client.products||"—"}</td></tr>
+      </table>
+      
+      <h4>1.1. Các loại năng lượng sử dụng và tiêu thụ</h4>
+      <table>
+        <tr><th width="5%">STT</th><th>Loại năng lượng</th><th>Sản lượng tiêu thụ</th><th>Đơn vị gốc</th><th>Năng lượng quy đổi (TOE)</th></tr>
+        ${d.energy_details.length ? d.energy_details.map((e,i) => `<tr><td style="text-align:center">${i+1}</td><td contenteditable="true">${e.type||"—"}</td><td contenteditable="true" style="text-align:center;color:#1976d2;font-weight:bold;">${e.amount||"—"}</td><td contenteditable="true" style="text-align:center">${e.unit||"—"}</td><td contenteditable="true" style="text-align:center;color:#388e3c;font-weight:bold;">${e.toe||"—"}</td></tr>`).join("") : '<tr><td colspan="5" style="text-align:center;color:#888;">Chưa có dữ liệu</td></tr>'}
+      </table>
+      
+      <br/>
+      <h3>2. THÔNG TIN CHUNG VỀ TỔ CHỨC ĐÁNH GIÁ GAP ISO 50001</h3>
+      <table>
+        <tr><th width="30%">Tên đơn vị đánh giá:</th><td contenteditable="true">${d.verifier.org||"—"}</td></tr>
+        <tr><th>Địa chỉ:</th><td contenteditable="true">${d.verifier.address||"—"}</td></tr>
+        <tr><th>Chương trình:</th><td contenteditable="true">${d.verifier.program||"—"}</td></tr>
+      </table>
+      
+      <h4>2.1. Đoàn chuyên gia thực hiện Khảo sát đánh giá Gap ISO 50001</h4>
+      <table>
+        <tr><th width="5%">STT</th><th>Họ và tên</th><th>Vai trò</th><th>Chứng chỉ Năng lượng</th></tr>
+        ${auditors.length ? auditors.map((a,i) => `<tr><td style="text-align:center">${i+1}</td><td contenteditable="true" style="font-weight:bold">${a.name||"—"}</td><td contenteditable="true">${a.role||"—"}</td><td contenteditable="true">${a.certificate||"—"}</td></tr>`).join("") : '<tr><td colspan="4" style="text-align:center;color:#888;">Chưa có dữ liệu</td></tr>'}
+      </table>
+    `;
+
+    // GAP TABLE
+    const { GAP_CHECKLIST } = require("../gap.constants");
+    let gapRows = "";
+    GAP_CHECKLIST.forEach((item, i) => {
+      const resp = (d.responses || {})[item.id] || {};
+      const sc = resp.score || 0;
+      const notes = resp.notes || "Chưa có thông tin";
+      const scColor = sc === 1 ? "#d32f2f" : sc === 2 ? "#ed6c02" : sc >= 4 ? "#2e7d32" : "#555";
+      gapRows += `<tr><td style="text-align:center">${i+1}</td><td style="text-align:center;font-weight:bold">${item.id}</td><td contenteditable="true">${item.title}</td><td contenteditable="true">${notes.replace(/\n/g, "<br/>")}</td><td contenteditable="true" style="text-align:center;font-weight:bold;color:${scColor}">${sc ? sc+"/5.0" : "—"}</td></tr>`;
+    });
+    
+    // SEUs
+    let seuRows = "";
+    const seus = d.site_assessments.filter(z => z.is_seu);
+    seus.forEach((s, i) => {
+      seuRows += `<tr><td style="text-align:center">${i+1}</td><td contenteditable="true" style="font-weight:bold">${s.name||"—"}</td><td contenteditable="true" style="text-align:center">${s.energy_types||"—"}</td><td contenteditable="true" style="text-align:center;color:#1976d2;font-weight:bold;">${s.consumption||"—"}</td><td contenteditable="true" style="text-align:center;font-weight:bold;">${s.percentage?s.percentage+"%":"—"}</td></tr>`;
+    });
+
+    // METERS
+    let meterRows = "";
+    d.meters.forEach((m, i) => {
+      meterRows += `<tr><td style="text-align:center">${i+1}</td><td contenteditable="true" style="font-weight:bold">${m.name||"—"}</td><td contenteditable="true">${m.load_type||"—"}</td><td contenteditable="true">${m.collect_method||"—"}</td><td contenteditable="true" style="text-align:center">${m.frequency||"—"}</td><td contenteditable="true" style="text-align:center">${m.calib_status||"—"}</td></tr>`;
+    });
+
+    // RISKS
+    let riskRows = "";
+    let rIdx = 1;
+    const allEquipments = d.site_assessments.flatMap(z => z.equipment || []);
+    const risksAndOpps = allEquipments.filter(e => (e.finding && e.finding.trim().length > 0) || (e.recommendation && e.recommendation.trim().length > 0) || (imagesByEqId[e.id] && imagesByEqId[e.id].length > 0));
+    
+    risksAndOpps.forEach((e) => {
+      let imgsHtml = "";
+      const eqImages = imagesByEqId[e.id] || [];
+      if (eqImages.length > 0) {
+        eqImages.forEach(img => {
+          const imgPath = path.resolve(__dirname, "../uploads", img.path || `${img.surveyId}/${img.filename}`);
+          if (fs.existsSync(imgPath)) {
+            const ext = img.filename.split('.').pop().toLowerCase() === 'png' ? 'png' : 'jpeg';
+            const base64 = fs.readFileSync(imgPath, { encoding: 'base64' });
+            imgsHtml += `<img src="data:image/${ext};base64,${base64}" />`;
+          }
+        });
+      }
+
+      riskRows += `<tr>
+        <td style="text-align:center" class="stt">${rIdx++}</td>
+        <td contenteditable="true" style="font-weight:bold">${e.name||"—"}</td>
+        <td contenteditable="true">${e.type||"—"}</td>
+        <td contenteditable="true">${(e.finding||"—").replace(/\n/g, '<br/>')}</td>
+        <td tabindex="0" onpaste="handlePaste(event, this)" style="text-align: center; vertical-align: middle; padding: 5px; cursor: pointer;">
+          <div style="font-size: 11px; color:#999; margin-bottom:5px;" class="no-print">[Click và nhấn Ctrl+V paste ảnh]</div>
+          ${imgsHtml}
+        </td>
+        <td class="no-print" style="text-align: center;">
+          <button onclick="deleteRow(this)" style="background:#e53935; color:#fff; border:none; padding:6px 10px; border-radius:4px; font-size:12px; cursor:pointer;" title="Xoá dòng này">Xoá</button>
+        </td>
+      </tr>`;
+    });
+
+    const html = `
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+      <meta charset="UTF-8">
+      <title>Báo cáo Nhanh Khảo sát GAP - ${d.client.name||""}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f4f6f8; color: #333; padding: 30px; margin: 0; }
+        .container { max-width: 1200px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        h1.title { color: #0d47a1; text-align: center; font-size: 28px; margin-bottom: 30px; text-transform: uppercase; }
+        h3 { color: #f57c00; font-size: 18px; margin-top: 40px; border-bottom: 2px solid #ffcc80; padding-bottom: 5px; }
+        h4 { color: #0277bd; font-size: 16px; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px; }
+        th { background-color: #f5f5f5; color: #333; padding: 10px; text-align: left; font-weight: 600; border: 1px solid #ddd; }
+        td { padding: 10px; border: 1px solid #ddd; vertical-align: middle; line-height: 1.5; }
+        td[contenteditable="true"]:focus, td[onpaste]:focus { outline: 2px solid #ff9800; background: #fff8e1; }
+        img { max-width: 250px; height: auto; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin: 5px; object-fit: contain; }
+        .footer { text-align: center; margin-top: 50px; font-size: 13px; color: #888; border-top: 1px solid #eee; padding-top: 20px; }
+        @media print {
+          body { background-color: #fff; padding: 0; }
+          .container { box-shadow: none; max-width: 100%; padding: 0; }
+          .no-print { display: none !important; }
+          td { outline: none !important; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1 class="title">BÁO CÁO NHANH KẾT QUẢ KHẢO SÁT GAP ISO 50001 (LITE)</h1>
+        
+        ${basicHtml}
+        
+        <h3>3. ĐÁNH GIÁ KHOẢNG CÁCH HỒ SƠ TÀI LIỆU VỚI ISO 50001:2018</h3>
+        <table>
+          <tr><th width="5%">STT</th><th width="10%">Điều khoản</th><th width="35%">Yêu cầu ISO 50001:2018</th><th width="40%">Trạng thái hiện tại</th><th width="10%">Điểm</th></tr>
+          ${gapRows}
+        </table>
+        
+        <h3>4. DANH SÁCH KHU VỰC SỬ DỤNG NĂNG LƯỢNG ĐÁNG KỂ (SEU)</h3>
+        <table>
+          <tr><th width="5%">STT</th><th>Tên SEU / Khu vực</th><th>Loại Năng lượng</th><th>Lượng NL SD</th><th>Tỷ lệ % năng lượng</th></tr>
+          ${seuRows || '<tr><td colspan="5" style="text-align:center;color:#888;">Chưa có dữ liệu</td></tr>'}
+        </table>
+        
+        <h3>5. THỐNG KÊ THIẾT BỊ ĐO LƯỜNG NĂNG LƯỢNG</h3>
+        <table>
+          <tr><th width="5%">STT</th><th>Tên ĐH</th><th>Phụ tải đo</th><th>Phương thức thu thập</th><th>Tần suất chốt</th><th>Kiểm định/HC</th></tr>
+          ${meterRows || '<tr><td colspan="6" style="text-align:center;color:#888;">Chưa có dữ liệu</td></tr>'}
+        </table>
+        
+        <h3>6. RỦI RO & CƠ HỘI CẢI TIẾN TẠI HIỆN TRƯỜNG</h3>
+        <table id="riskTable">
+          <tr><th width="5%">STT</th><th width="20%">Tên thiết bị / Hệ thống</th><th width="15%">Loại</th><th width="30%">Phát hiện (Rủi ro & Cơ hội)</th><th width="22%">Hình ảnh chứng minh</th><th width="8%" class="no-print" style="text-align:center">Thao tác</th></tr>
+          ${riskRows || '<tr><td colspan="6" style="text-align:center;color:#888;">Chưa có dữ liệu</td></tr>'}
+        </table>
+        <div class="no-print" style="text-align:right;">
+          <button onclick="addRiskRow()" style="background:#4CAF50; color:#fff; border:none; padding:8px 16px; border-radius:4px; font-weight:bold; cursor:pointer;">+ Thêm dòng trống</button>
+        </div>
+
+        <div class="footer">
+          Được trích xuất tự động từ Hệ thống Đánh giá GAP ISO 50001<br/>
+          Mã khảo sát: ${d.meta.ref_no||""} - Ngày: ${new Date().toLocaleDateString('vi-VN')}
+        </div>
+      </div>
+      
+      <script>
+        function deleteRow(btn) {
+          if(!confirm('Bạn chắc chắn muốn xoá dòng báo cáo này?')) return;
+          const tr = btn.closest('tr');
+          if (tr) tr.parentNode.removeChild(tr);
+          reindex();
+        }
+        function reindex() {
+          const rows = document.querySelectorAll('#riskTable tbody tr');
+          let i = 1;
+          rows.forEach((tr) => {
+            const sttCell = tr.querySelector('.stt');
+            if(sttCell) { sttCell.innerText = i++; }
+          });
+        }
+        function handlePaste(e, td) {
+          const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+          for (let index in items) {
+            const item = items[index];
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+              e.preventDefault(); 
+              const blob = item.getAsFile();
+              const reader = new FileReader();
+              reader.onload = function(event) {
+                const img = document.createElement('img');
+                img.src = event.target.result;
+                td.appendChild(img);
+              };
+              reader.readAsDataURL(blob);
+              break;
+            }
+          }
+        }
+        function addRiskRow() {
+          const tbody = document.querySelector('#riskTable tbody') || document.querySelector('#riskTable');
+          if (!tbody) return;
+          // Loại bỏ dòng "Chưa có dữ liệu" nếu có
+          if(tbody.querySelector('td[colspan]')) {
+             tbody.innerHTML = '<tr><th width="5%">STT</th><th width="20%">Tên thiết bị / Hệ thống</th><th width="15%">Loại</th><th width="30%">Phát hiện (Rủi ro & Cơ hội)</th><th width="22%">Hình ảnh chứng minh</th><th width="8%" class="no-print" style="text-align:center">Thao tác</th></tr>';
+          }
+          const tr = document.createElement('tr');
+          tr.innerHTML = \`<td style="text-align:center" class="stt"></td>
+            <td contenteditable="true" style="font-weight:bold"></td>
+            <td contenteditable="true"></td>
+            <td contenteditable="true"></td>
+            <td tabindex="0" onpaste="handlePaste(event, this)" style="text-align: center; vertical-align: middle; padding: 5px; cursor: pointer;">
+              <div style="font-size: 11px; color:#999; margin-bottom:5px;" class="no-print">[Click và nhấn Ctrl+V paste ảnh]</div>
+            </td>
+            <td class="no-print" style="text-align: center;">
+              <button onclick="deleteRow(this)" style="background:#e53935; color:#fff; border:none; padding:6px 10px; border-radius:4px; font-size:12px; cursor:pointer;" title="Xoá dòng này">Xoá</button>
+            </td>\`;
+          tbody.appendChild(tr);
+          reindex();
+        }
+      </script>
+    </body>
+    </html>
+    `;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename=Lite_Report_${survey.meta?.ref_no || 'GAP'}.html`);
+    res.send(html);
+  } catch (err) {
+    if (err.name === "CastError") return res.status(400).json({ error: "Invalid id" });
+    const msg = err.message || "";
+    console.error("[surveys export lite html]", err);
+    res.status(500).json({ error: msg || "Lỗi tạo báo cáo Lite HTML." });
+  }
+});
+
+module.exports = router;
+router.get("/:id/export-html", requireMongo, async (req, res) => {
+  try {
+    const survey = await Survey.findById(req.params.id).lean();
+    if (!survey) return res.status(404).json({ error: "Survey not found" });
+
+    // Fetch images linked to this survey
+    const images = await Evidence.find({ surveyId: survey._id, type: "image", source: { $ne: "document" } }).lean();
+
+    const imagesByZoneId = {};
+    const imagesByEqId = {};
+    const imagesByClauseId = {};
+    images.forEach(img => {
+      const c = img.context || {};
+      const clauseId = img.clauseId || c.clause;
+      
+      if (c.equipment) {
+        if (!imagesByEqId[c.equipment]) imagesByEqId[c.equipment] = [];
+        imagesByEqId[c.equipment].push(img);
+      } else if (c.zone) {
+        if (!imagesByZoneId[c.zone]) imagesByZoneId[c.zone] = [];
+        imagesByZoneId[c.zone].push(img);
+      }
+      
+      if (clauseId) {
+        if (!imagesByClauseId[clauseId]) imagesByClauseId[clauseId] = [];
+        imagesByClauseId[clauseId].push(img);
+      }
+    });
+
+    const rowItems = []; 
+    (survey.site_assessments || []).forEach(zone => {
+      if (zone.notes && String(zone.notes).trim()) {
+        rowItems.push({
+          type: 'zone', id: zone.id,
+          name1: zone.name || "Khu vực",
+          name2: "Đánh giá chung khu vực",
+          finding: zone.notes || "",
+          rec: "",
+          images: imagesByZoneId[zone.id] || []
+        });
+      }
+      (zone.equipment || []).forEach(eq => {
+        rowItems.push({
+          type: 'equipment', id: eq.id,
+          name1: zone.name || "",
+          name2: eq.name || "",
+          finding: eq.finding || "",
+          rec: eq.recommendation || "",
+          images: imagesByEqId[eq.id] || []
+        });
+      });
+    });
+
+    const actionPlanByClauseId = {};
+    (survey.action_plan || []).forEach(ap => {
+      if (ap.clause) actionPlanByClauseId[ap.clause] = ap.action;
+    });
+
+    const { GAP_CHECKLIST } = require("../gap.constants");
+    GAP_CHECKLIST.forEach(item => {
+      const resp = (survey.responses || {})[item.id];
+      const imgs = [ ...(imagesByClauseId[item.id] || []), ...(imagesByClauseId[item.clause] || []) ];
+      delete imagesByClauseId[item.id];
+      delete imagesByClauseId[item.clause];
+      const note = resp && resp.note ? String(resp.note).trim() : "";
+      const rec = actionPlanByClauseId[item.id] ? String(actionPlanByClauseId[item.id]).trim() : "";
+      
+      if (imgs.length > 0) {
+        imgs.forEach((img, index) => {
+          rowItems.push({
+            type: 'clause', id: item.id,
+            name1: `Điều khoản ${item.clause}`,
+            name2: `${item.id} - ${item.title}`,
+            finding: index === 0 ? note : "", 
+            rec: index === 0 ? rec : "", 
+            images: [img], 
+            imgNote: img.note || img.originalName || "" 
+          });
+        });
+      } else if (note.length > 0 || rec.length > 0) {
+        rowItems.push({
+          type: 'clause', id: item.id,
+          name1: `Điều khoản ${item.clause}`,
+          name2: `${item.id} - ${item.title}`,
+          finding: note, rec: rec, images: [], imgNote: ""
+        });
+      }
+    });
+
+    let trs = "";
+    rowItems.forEach((item, index) => {
+      let imgSrc = "";
+      if (item.images && item.images.length > 0) {
+        const img = item.images[0];
+        const imgPath = path.resolve(__dirname, "../uploads", img.path || `${img.surveyId}/${img.filename}`);
+        if (fs.existsSync(imgPath)) {
+          const ext = img.filename.split('.').pop().toLowerCase() === 'png' ? 'png' : 'jpeg';
+          const base64 = fs.readFileSync(imgPath, { encoding: 'base64' });
+          imgSrc = `data:image/${ext};base64,${base64}`;
+        }
+      }
+      
+      const imgTag = imgSrc ? `<img src="${imgSrc}" alt="evidence" />` : "";
+      const rowStyle = index % 2 === 0 ? 'background-color: #fafbfc;' : 'background-color: #ffffff;';
+      
+      const formatText = (txt) => {
+        if (!txt) return "";
+        return txt.replace(/\n/g, '<br/>').replace(/(rủi ro|high risk|nguy hiểm)/gi, '<strong style="color: #d32f2f;">$1</strong>').replace(/(cơ hội|khuyến nghị|tiết kiệm)/gi, '<strong style="color: #2e7d32;">$1</strong>');
+      };
+
+      trs += `
+        <tr style="${rowStyle}">
+          <td style="text-align: center; font-weight: bold;" class="stt">${index + 1}</td>
+          <td contenteditable="true">${formatText(item.name1)}</td>
+          <td contenteditable="true" style="font-weight: 600; color: #1565c0;">${formatText(item.name2)}</td>
+          <td contenteditable="true">${formatText(item.finding)}</td>
+          <td contenteditable="true" style="background-color: #f1f8e9;">${formatText(item.rec)}</td>
+          <td tabindex="0" onpaste="handlePaste(event, this)" title="Paste (Ctrl+V) ảnh vào đây" style="text-align: center; vertical-align: middle; padding: 5px; cursor: pointer; border: 1px solid #ddd;">
+            <div style="font-size: 11px; color:#999; margin-bottom:5px;" class="no-print">[Click và nhấn Ctrl+V paste thêm ảnh]</div>
+            ${imgTag}
+          </td>
+          <td contenteditable="true" style="font-style: italic; color: #555;">${formatText(item.imgNote)}</td>
+          <td class="no-print" style="text-align: center;">
+            <button onclick="deleteRow(this)" style="background:#e53935; color:#fff; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;" title="Xoá dòng này">Xoá</button>
+          </td>
+        </tr>
+      `;
+    });
+
+    const html = `
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+      <meta charset="UTF-8">
+      <title>Báo cáo Hiện trạng ISO 50001</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+          font-family: 'Inter', sans-serif;
+          background-color: #f4f6f8;
+          color: #333;
+          padding: 30px;
+          margin: 0;
+        }
+        .container {
+          max-width: 1400px;
+          margin: 0 auto;
+          background: #fff;
+          border-radius: 12px;
+          padding: 30px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        }
+        h1 {
+          color: #0d47a1;
+          text-align: center;
+          font-size: 28px;
+          margin-bottom: 5px;
+        }
+        h3 {
+          color: #555;
+          text-align: center;
+          font-size: 16px;
+          font-weight: 400;
+          margin-bottom: 30px;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 14px;
+          table-layout: fixed;
+        }
+        th {
+          background-color: #1976d2;
+          color: #fff;
+          padding: 12px 10px;
+          text-align: left;
+          font-weight: 600;
+          border: 1px solid #1565c0;
+          position: relative;
+        }
+        td {
+          padding: 12px 10px;
+          border: 1px solid #ccc;
+          vertical-align: top;
+          line-height: 1.5;
+          word-wrap: break-word;
+        }
+        td[contenteditable="true"]:focus {
+          outline: 2px solid #ff9800;
+          background: #fff8e1;
+        }
+        td:focus {
+          outline: 2px solid #29b6f6;
+        }
+        img {
+          width: 100%;
+          height: auto;
+          max-height: 450px;
+          border-radius: 6px;
+          box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+          object-fit: contain;
+          margin-bottom: 8px;
+        }
+        .resizer {
+          position: absolute;
+          top: 0;
+          right: 0;
+          width: 5px;
+          cursor: col-resize;
+          user-select: none;
+          height: 100%;
+          z-index: 10;
+        }
+        .resizer:hover, .resizing {
+          background-color: #ff9800;
+        }
+        .footer {
+          text-align: center;
+          margin-top: 30px;
+          font-size: 13px;
+          color: #888;
+        }
+        @media print {
+          .no-print { display: none !important; }
+          body { background-color: #fff; padding: 0; }
+          .container { box-shadow: none; max-width: 100%; padding: 0; }
+          td { outline: none !important; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>BÁO CÁO HÌNH ẢNH HIỆN TRẠNG & CƠ HỘI CẢI TIẾN</h1>
+        <h3>
+          Nhiệm vụ kiểm toán, đánh giá độc lập<br/>
+          Phiên khảo sát: ${survey.meta?.ref_no || "GAP"} - Khách hàng: ${survey.client?.name || "N/A"}<br/>
+          Ngày khảo sát: ${survey.meta?.survey_date || "Chưa xác định"}
+        </h3>
+        <table>
+          <thead>
+            <tr>
+              <th width="4%">STT</th>
+              <th width="12%">Khu vực / Điều khoản</th>
+              <th width="12%">Khu vực chi tiết</th>
+              <th width="20%">Hiện trạng phát hiện</th>
+              <th width="20%">Khuyến nghị / Hành động</th>
+              <th width="18%" style="text-align: center;">Hình ảnh chứng minh</th>
+              <th width="8%">Ghi chú ảnh</th>
+              <th width="6%" class="no-print">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${trs}
+          </tbody>
+        </table>
+        <div class="footer">
+          Được trích xuất tự động từ Hệ thống Đánh giá GAP ISO 50001
+        </div>
+      </div>
+      
+      <script>
+        function deleteRow(btn) {
+          if(!confirm('Bạn chắc chắn muốn xoá dòng báo cáo này?')) return;
+          const tr = btn.closest('tr');
+          if (tr) tr.parentNode.removeChild(tr);
+          reindex();
+        }
+        
+        function reindex() {
+          const rows = document.querySelectorAll('tbody tr');
+          rows.forEach((tr, index) => {
+            const sttCell = tr.querySelector('.stt');
+            if(sttCell) sttCell.innerText = index + 1;
+          });
+        }
+        
+        function handlePaste(e, td) {
+          const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+          for (let index in items) {
+            const item = items[index];
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+              e.preventDefault(); 
+              const blob = item.getAsFile();
+              const reader = new FileReader();
+              reader.onload = function(event) {
+                const img = document.createElement('img');
+                img.src = event.target.result;
+                td.appendChild(img);
+              };
+              reader.readAsDataURL(blob);
+              break;
+            }
+          }
+        }
+
+        // Logic Kéo chiều rộng cột (Thanh Drag)
+        document.addEventListener('DOMContentLoaded', () => {
+          const ths = document.querySelectorAll('th');
+          ths.forEach(th => {
+            const resizer = document.createElement('div');
+            resizer.classList.add('resizer', 'no-print');
+            th.appendChild(resizer);
+            
+            let x, w;
+            const mouseDownHandler = function(e) {
+              x = e.clientX;
+              const styles = window.getComputedStyle(th);
+              w = parseInt(styles.width, 10);
+              document.addEventListener('mousemove', mouseMoveHandler);
+              document.addEventListener('mouseup', mouseUpHandler);
+              resizer.classList.add('resizing');
+            };
+            
+            const mouseMoveHandler = function(e) {
+              const dx = e.clientX - x;
+              th.style.width = (w + dx) + "px";
+            };
+            
+            const mouseUpHandler = function() {
+              document.removeEventListener('mousemove', mouseMoveHandler);
+              document.removeEventListener('mouseup', mouseUpHandler);
+              resizer.classList.remove('resizing');
+            };
+            
+            resizer.addEventListener('mousedown', mouseDownHandler);
+          });
+        });
+      </script>
+    </body>
+    </html>
+    `;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename=Export_HTML_${survey.meta?.ref_no || 'GAP'}.html`);
+    res.send(html);
+  } catch (err) {
+    if (err.name === "CastError") return res.status(400).json({ error: "Invalid id" });
+    const msg = err.message || "";
+    console.error("[surveys export html]", err);
+    res.status(500).json({ error: msg || "Lỗi tạo báo cáo HTML." });
+  }
+});

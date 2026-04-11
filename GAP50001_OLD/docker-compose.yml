@@ -1,0 +1,68 @@
+# ============================================================
+#  ISO 50001 GAP Survey — Docker Compose
+#
+#  Requirements (macOS):
+#    Option 1 — Docker Desktop:  https://docs.docker.com/desktop/install/mac-install/
+#    Option 2 — Colima:          brew install colima && colima start
+#
+#  Usage:
+#    docker compose up -d --build     # Start everything
+#    docker compose logs -f backend    # Watch backend logs
+#    docker compose down               # Stop all
+#    docker compose down -v            # Stop + DELETE database
+#
+#  After start:
+#    App:    http://localhost:8888
+#    API:    http://localhost:8888/api
+#    Health: http://localhost:8888/health
+#    Mongo:  localhost:27017  (MongoDB Compass)
+# ============================================================
+
+services:
+
+  # ── MongoDB 7 ──────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: iso50001-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Node.js Backend ─────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: iso50001-backend
+    restart: unless-stopped
+    environment:
+      PORT: 5002
+      MONGODB_URI: mongodb://mongo:27017/iso50001gap
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  # ── Nginx (React SPA + API proxy) ───────────────────────────
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    container_name: iso50001-nginx
+    restart: unless-stopped
+    ports:
+      - "8888:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:
+    name: iso50001-mongo_data

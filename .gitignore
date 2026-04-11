@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+_MACOSX/
+*.rar
+backend/uploads/
+certbot/conf/
+backend/test-output-*.docx
+backend/test_*.js
+backend/test_*.txt
+*.log
+.env

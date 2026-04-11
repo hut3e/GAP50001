@@ -1,0 +1,90 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: iso50001-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  iso50001-postgres:
+    image: postgres:15-alpine
+    container_name: iso50001-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpassword
+      POSTGRES_DB: iso50001gap
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d iso50001gap"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: iso50001-backend
+    restart: unless-stopped
+    environment:
+      PORT: 5002
+      MONGODB_URI: mongodb://mongo:27017/iso50001gap
+      POSTGRES_HOST: iso50001-postgres
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    container_name: iso50001-nginx
+    restart: unless-stopped
+    ports:
+      - "8888:80"
+      - "443:443"
+    depends_on:
+      - backend
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+
+  certbot:
+    image: certbot/certbot
+    container_name: iso50001-certbot
+    restart: unless-stopped
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: /bin/sh
+    command: -c "while true; do certbot renew --webroot -w /var/www/certbot --quiet && echo 'certbot renew done'; sleep 12h; done"
+
+  ddclient:
+    image: linuxserver/ddclient
+    container_name: iso50001-ddclient
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      - ./ddns/ddclient.conf:/config/ddclient.conf
+
+volumes:
+  mongo_data:
+    external: true
+    name: iso50001-mongo_data
+  postgres_data:

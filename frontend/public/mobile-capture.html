@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>GAP 50001 — Chụp ảnh bằng chứng</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg0:   #0f172a;
+      --bg1:   #1e293b;
+      --bg2:   #263350;
+      --blue:  #3b82f6;
+      --teal:  #14b8a6;
+      --green: #22c55e;
+      --red:   #ef4444;
+      --amber: #f59e0b;
+      --t0:    #f1f5f9;
+      --t1:    #94a3b8;
+      --t2:    #64748b;
+      --bd:    #334155;
+    }
+    body {
+      background: var(--bg0);
+      color: var(--t0);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 15px;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--bg1);
+      border-bottom: 1px solid var(--bd);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { font-size: 18px; font-weight: 700; color: var(--blue); }
+    .subtitle { font-size: 12px; color: var(--t1); }
+
+    /* ── Status bar ── */
+    #statusBar {
+      padding: 8px 16px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      transition: background 0.3s;
+    }
+    #statusBar.connecting { background: rgba(59,130,246,0.15); color: var(--blue); }
+    #statusBar.connected  { background: rgba(20,184,166,0.15); color: var(--teal); }
+    #statusBar.error      { background: rgba(239,68,68,0.15);  color: var(--red); }
+    #statusBar.saving     { background: rgba(245,158,11,0.15); color: var(--amber); }
+    #statusBar.saved      { background: rgba(34,197,94,0.15);  color: var(--green); }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: currentColor; flex-shrink: 0;
+    }
+    .dot.pulse { animation: pulse 1.2s infinite; }
+    @keyframes pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.4; transform:scale(1.4); }
+    }
+
+    /* ── Main content ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 12px 14px;
+      gap: 14px;
+      max-width: 500px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ── Session info ── */
+    .session-card {
+      background: var(--bg2);
+      border: 1px solid var(--bd);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .session-label { font-size: 11px; color: var(--t2); margin-bottom: 2px; }
+    .session-value { font-size: 14px; font-weight: 600; color: var(--t0); word-break: break-all; }
+
+    /* ── Form fields ── */
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 13px; color: var(--t1); font-weight: 500; }
+    select, input[type="text"] {
+      background: var(--bg1);
+      border: 1px solid var(--bd);
+      border-radius: 8px;
+      color: var(--t0);
+      font-size: 14px;
+      padding: 10px 12px;
+      width: 100%;
+      -webkit-appearance: none;
+    }
+    select:focus, input[type="text"]:focus {
+      outline: 2px solid var(--blue);
+      border-color: var(--blue);
+    }
+
+    /* ── Camera section ── */
+    .camera-wrap {
+      background: #000;
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+      aspect-ratio: 4/3;
+      width: 100%;
+    }
+    #videoEl {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+      transform: scaleX(-1);
+    }
+    #videoEl.rear { transform: none; }
+    .cam-overlay {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 10px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.6));
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      touch-action: manipulation;
+    }
+    .btn:active { transform: scale(0.96); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: linear-gradient(135deg, var(--teal), #0ea5e9); color: #fff; }
+    .btn-blue    { background: linear-gradient(135deg, var(--blue), #818cf8); color: #fff; }
+    .btn-ghost   { background: var(--bg2); color: var(--t0); border: 1px solid var(--bd); }
+    .btn-danger  { background: linear-gradient(135deg, var(--red), #f97316); color: #fff; }
+    .btn-capture {
+      width: 68px; height: 68px; border-radius: 50%;
+      background: #fff;
+      border: 3px solid var(--teal);
+      font-size: 26px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .btn-flip {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-full { width: 100%; justify-content: center; padding: 14px; }
+
+    /* ── Preview ── */
+    #previewWrap {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #previewWrap.show { display: flex; }
+    #previewImg {
+      width: 100%;
+      border-radius: 12px;
+      border: 2px solid var(--teal);
+      object-fit: contain;
+      max-height: 300px;
+      background: #000;
+    }
+
+    /* ── Photo list ── */
+    #photoList {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      gap: 8px;
+    }
+    .photo-thumb {
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      aspect-ratio: 1;
+      background: var(--bg2);
+    }
+    .photo-thumb img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .photo-thumb .status-badge {
+      position: absolute;
+      bottom: 4px; right: 4px;
+      font-size: 16px;
+    }
+    .photo-thumb .remove-btn {
+      position: absolute;
+      top: 4px; right: 4px;
+      background: rgba(239,68,68,0.85);
+      border: none;
+      border-radius: 50%;
+      width: 22px; height: 22px;
+      color: #fff;
+      font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 20px; left: 50%; transform: translateX(-50%);
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 999;
+      opacity: 0;
+      transition: opacity 0.3s;
+      max-width: 90vw;
+      text-align: center;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; }
+    #toast.success { background: var(--green); color: #fff; }
+    #toast.error   { background: var(--red);   color: #fff; }
+    #toast.info    { background: var(--blue);  color: #fff; }
+
+    /* ── No camera fallback ── */
+    #noCamera {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      padding: 30px;
+      background: var(--bg2);
+      border-radius: 14px;
+      border: 2px dashed var(--bd);
+      text-align: center;
+    }
+    #noCamera.show { display: flex; }
+
+    #fileInput { display: none; }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--t1);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    @media (prefers-color-scheme: light) {
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div style="font-size:22px">📷</div>
+  <div>
+    <div class="logo">GAP 50001</div>
+    <div class="subtitle">Chụp ảnh bằng chứng hiện trường</div>
+  </div>
+</header>
+
+<div id="statusBar" class="connecting">
+  <div class="dot pulse"></div>
+  <span id="statusText">Đang kết nối đến máy chủ…</span>
+</div>
+
+<main>
+  <div class="session-card" id="sessionCard">
+    <div class="session-label">Phiên khảo sát (Survey ID)</div>
+    <div class="session-value" id="surveyIdDisplay">—</div>
+  </div>
+
+  <div class="field">
+    <label>§ Điều khoản ISO 50001:2018</label>
+    <select id="clauseSelect">
+      <option value="">— Chọn điều khoản —</option>
+      <optgroup label="§4 Bối cảnh của tổ chức">
+        <option value="4.1">§4.1 Tổ chức và bối cảnh</option>
+        <option value="4.2">§4.2 Yêu cầu các bên liên quan</option>
+        <option value="4.3">§4.3 Phạm vi EnMS</option>
+        <option value="4.4">§4.4 EnMS</option>
+      </optgroup>
+      <optgroup label="§5 Lãnh đạo">
+        <option value="5.1">§5.1 Lãnh đạo và cam kết</option>
+        <option value="5.2">§5.2 Chính sách năng lượng</option>
+        <option value="5.3">§5.3 Vai trò, trách nhiệm</option>
+      </optgroup>
+      <optgroup label="§6 Hoạch định">
+        <option value="6.1">§6.1 Rủi ro và cơ hội</option>
+        <option value="6.2">§6.2 Mục tiêu và kế hoạch</option>
+        <option value="6.3">§6.3 Xem xét năng lượng</option>
+        <option value="6.4">§6.4 Baseline năng lượng</option>
+        <option value="6.5">§6.5 EnPI</option>
+        <option value="6.6">§6.6 Thu thập dữ liệu</option>
+      </optgroup>
+      <optgroup label="§7 Hỗ trợ">
+        <option value="7.1">§7.1 Nguồn lực</option>
+        <option value="7.2">§7.2 Năng lực</option>
+        <option value="7.3">§7.3 Nhận thức</option>
+        <option value="7.4">§7.4 Trao đổi thông tin</option>
+        <option value="7.5">§7.5 Thông tin dạng văn bản</option>
+      </optgroup>
+      <optgroup label="§8 Điều hành">
+        <option value="8.1">§8.1 Hoạch định điều hành</option>
+        <option value="8.2">§8.2 Thiết kế</option>
+        <option value="8.3">§8.3 Mua sắm thiết bị/năng lượng</option>
+      </optgroup>
+      <optgroup label="§9 Đánh giá kết quả">
+        <option value="9.1">§9.1 Giám sát, đo lường, phân tích</option>
+        <option value="9.2">§9.2 Đánh giá nội bộ</option>
+        <option value="9.3">§9.3 Xem xét của lãnh đạo</option>
+      </optgroup>
+      <optgroup label="§10 Cải tiến">
+        <option value="10.1">§10.1 Sự không phù hợp</option>
+        <option value="10.2">§10.2 Cải tiến liên tục</option>
+      </optgroup>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>Ghi chú bằng chứng (tùy chọn)</label>
+    <input type="text" id="noteInput" placeholder="Mô tả ngắn về ảnh…" autocomplete="off" />
+  </div>
+
+  <div class="camera-wrap" id="cameraWrap">
+    <video id="videoEl" autoplay playsinline muted></video>
+    <div class="cam-overlay">
+      <button class="btn btn-flip" id="btnFlip" title="Đổi camera">🔄</button>
+      <button class="btn btn-capture" id="btnCapture" title="Chụp ảnh">📸</button>
+    </div>
+  </div>
+
+  <div id="noCamera">
+    <div style="font-size:40px">📷</div>
+    <p style="color:var(--t1)">Không truy cập được camera</p>
+    <p style="font-size:13px;color:var(--t2)">Đảm bảo trình duyệt có quyền camera hoặc dùng file upload bên dưới</p>
+    <label class="btn btn-blue btn-full" style="margin-top:6px">
+      📁 Chọn ảnh từ thư viện
+      <input type="file" id="fileInput" accept="image/*" capture="environment" multiple />
+    </label>
+  </div>
+
+  <div id="previewWrap">
+    <p class="section-title">Xem trước ảnh</p>
+    <img id="previewImg" alt="Xem trước" />
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary btn-full" id="btnSend" style="flex:2">
+        ✅ Gửi ảnh vào phiên
+      </button>
+      <button class="btn btn-ghost" id="btnRetake" style="flex:1">
+        🔁 Chụp lại
+      </button>
+    </div>
+  </div>
+
+  <div>
+    <p class="section-title" style="margin-bottom:8px">Ảnh đã gửi (<span id="photoCount">0</span>)</p>
+    <div id="photoList"></div>
+  </div>
+
+  <div style="border-top:1px solid var(--bd);padding-top:14px">
+    <p class="section-title" style="margin-bottom:8px">Hoặc upload file ảnh</p>
+    <label class="btn btn-ghost btn-full">
+      📁 Chọn ảnh từ thiết bị
+      <input type="file" id="fileInputAlt" accept="image/*" multiple />
+    </label>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script src="https://cdn.socket.io/4.7.4/socket.io.min.js"
+        integrity="sha384-Gr6Lu2Ajx28mzwyVR8CFkULdCU7kMlZ9UthllibdOSo6qAiN+yXNHqtgdTvFXMT"
+        crossorigin="anonymous"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js'">
+</script>
+
+<script>
+"use strict";
+function readConfig() {
+  if (window.__MOBILE_CAPTURE_CONFIG__) return window.__MOBILE_CAPTURE_CONFIG__;
+
+  const qp = new URLSearchParams(window.location.search);
+  const hp = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const get = (k) => qp.get(k) || hp.get(k) || "";
+
+  const parts = window.location.pathname.split("/").filter(Boolean);
+  const pathSurveyId   = parts[1] || "";
+  const pathSocketPort = parts[2] || "";
+  const pathClauseId   = parts[3] || "";
+
+  const surveyId   = get("surveyId")   || pathSurveyId;
+  const socketPort = get("socketPort") || pathSocketPort || "5002";
+  const clauseId   = get("clauseId")   || pathClauseId  || "";
+  const apiBase    = get("apiBase")    || `${window.location.protocol}//${window.location.hostname}:${socketPort}`;
+
+  return { surveyId, socketPort, clauseId, apiBase };
+}
+
+const cfg = readConfig();
+const { surveyId, socketPort, apiBase } = cfg;
+let { clauseId } = cfg;
+
+const surveyIdDisplay = document.getElementById("surveyIdDisplay");
+const statusBar       = document.getElementById("statusBar");
+const statusText      = document.getElementById("statusText");
+const clauseSelect    = document.getElementById("clauseSelect");
+const noteInput       = document.getElementById("noteInput");
+const videoEl         = document.getElementById("videoEl");
+const cameraWrap      = document.getElementById("cameraWrap");
+const noCamera        = document.getElementById("noCamera");
+const btnCapture      = document.getElementById("btnCapture");
+const btnFlip         = document.getElementById("btnFlip");
+const previewWrap     = document.getElementById("previewWrap");
+const previewImg      = document.getElementById("previewImg");
+const btnSend         = document.getElementById("btnSend");
+const btnRetake       = document.getElementById("btnRetake");
+const photoList       = document.getElementById("photoList");
+const photoCount      = document.getElementById("photoCount");
+const fileInputAlt    = document.getElementById("fileInputAlt");
+const fileInput       = document.getElementById("fileInput");
+
+let currentDataUrl = null;
+let facingMode     = "environment";
+let stream         = null;
+let socketConn     = null;
+let savedPhotos    = [];
+let toastTimer     = null;
+
+// Phát hiện in‑app browser (Zalo, Facebook, v.v.) và khả năng hỗ trợ camera
+const ua             = (navigator && navigator.userAgent) ? navigator.userAgent.toLowerCase() : "";
+const INAPP_HINT     = /zalo|fbav|fban|line|micromessenger|instagram/.test(ua);
+const hasMediaAPI    = !!(navigator && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+const hasMediaDevices = hasMediaAPI && !INAPP_HINT;
+
+surveyIdDisplay.textContent = surveyId || "Không tìm thấy Survey ID";
+if (!surveyId) {
+  setStatus("error", "❌ Không có Survey ID — Quét lại QR từ máy tính");
+}
+
+if (clauseId && clauseSelect) {
+  clauseSelect.value = clauseId;
+}
+
+function setStatus(type, msg) {
+  statusBar.className = type;
+  statusText.textContent = msg;
+  const dot = statusBar.querySelector(".dot");
+  dot.classList.toggle("pulse", type === "connecting" || type === "saving");
+}
+
+function showToast(msg, type = "info", duration = 3000) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.className = "";
+  }, duration);
+}
+
+function connectSocket() {
+  if (!surveyId) return;
+  setStatus("connecting", "Đang kết nối Socket.IO…");
+  const url = apiBase || `${window.location.protocol}//${window.location.hostname}:${socketPort}`;
+  try {
+    const socket = io(url, {
+      transports: ["websocket", "polling"],
+      timeout: 10000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+    });
+    socketConn = socket;
+
+    socket.on("connect", () => {
+      socket.emit("join:survey", surveyId);
+      setStatus("connected", `✅ Đã kết nối — Phiên: ${surveyId.slice(-8)}`);
+    });
+
+    socket.on("joined:survey", (data) => {
+      setStatus("connected", `✅ Kết nối phòng — ${data.clients} thiết bị`);
+    });
+
+    socket.on("evidence:saved", (data) => {
+      setStatus("saved", `✅ Ảnh đã lưu vào phiên (ID: ${String(data.id).slice(-6)})`);
+      showToast("✅ Ảnh đã gửi thành công!", "success");
+    });
+
+    socket.on("evidence:error", (data) => {
+      setStatus("error", `❌ ${data.error}`);
+      showToast(`❌ Lỗi: ${data.error}`, "error", 5000);
+    });
+
+    socket.on("disconnect", (reason) => {
+      setStatus("connecting", `⚠️ Mất kết nối (${reason}) — Đang thử lại…`);
+    });
+
+    socket.on("connect_error", (err) => {
+      setStatus("error", `❌ Lỗi kết nối: ${err.message}`);
+    });
+  } catch (e) {
+    setStatus("error", `❌ Socket.IO lỗi: ${e.message}`);
+  }
+}
+
+async function startCamera(facing = "environment") {
+  if (!hasMediaDevices) {
+    cameraWrap.style.display = "none";
+    noCamera.classList.add("show");
+    if (INAPP_HINT) {
+      setStatus("error", "⚠️ Trình duyệt trong ứng dụng (Zalo/Facebook/…) thường chặn camera. Hãy chọn ảnh từ thư viện hoặc mở link bằng Safari/Chrome.");
+    } else if (!hasMediaAPI) {
+      setStatus("error", "⚠️ Thiết bị / trình duyệt không hỗ trợ API camera (navigator.mediaDevices). Hãy dùng nút chọn ảnh.");
+    } else {
+      setStatus("error", "⚠️ Không mở được camera. Vui lòng dùng nút chọn ảnh.");
+    }
+    return;
+  }
+  if (stream) {
+    stream.getTracks().forEach((t) => t.stop());
+    stream = null;
+  }
+  facingMode = facing;
+  videoEl.classList.toggle("rear", facing === "environment");
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: facing },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+      audio: false,
+    });
+    videoEl.srcObject = stream;
+    cameraWrap.style.display = "block";
+    noCamera.classList.remove("show");
+  } catch (err) {
+    cameraWrap.style.display = "none";
+    noCamera.classList.add("show");
+    setStatus("error", `⚠️ Camera: ${err.message}`);
+  }
+}
+
+function captureFrame() {
+  if (!videoEl.videoWidth) {
+    showToast("Camera chưa sẵn sàng, thử lại sau 1 giây", "error");
+    return;
+  }
+  // Giới hạn kích thước ảnh gửi lên server để giảm dung lượng (max 1600x1200)
+  const maxW = 1600;
+  const maxH = 1200;
+  const w = videoEl.videoWidth;
+  const h = videoEl.videoHeight;
+  const scale = Math.min(maxW / w, maxH / h, 1);
+  const cw = Math.round(w * scale);
+  const ch = Math.round(h * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(videoEl, 0, 0, cw, ch);
+
+  currentDataUrl = canvas.toDataURL("image/jpeg", 0.8); // chất lượng 80% là đủ cho bằng chứng
+
+  previewImg.src = currentDataUrl;
+  previewWrap.classList.add("show");
+  cameraWrap.style.display = "none";
+}
+
+async function sendPhoto(dataUrl) {
+  if (!dataUrl) return;
+  const cId = clauseSelect.value || clauseId || "";
+  const note = noteInput.value.trim();
+
+  setStatus("saving", "⏳ Đang gửi ảnh…");
+  btnSend.disabled = true;
+
+  let saved = false;
+
+  if (socketConn && socketConn.connected) {
+    try {
+      socketConn.emit("evidence:submit", {
+        surveyId,
+        imageBase64: dataUrl,
+        clauseId: cId || undefined,
+        note: note || undefined,
+        source: "mobile",
+      });
+      saved = true;
+    } catch (e) {
+      console.warn("[Mobile] Socket send failed, fallback to HTTP", e);
+    }
+  }
+
+  if (!saved) {
+    try {
+      const res = await fetch(`${apiBase}/api/surveys/${encodeURIComponent(surveyId)}/evidence/base64`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: dataUrl,
+          clauseId: cId || undefined,
+          note: note || undefined,
+          source: "mobile",
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const doc = await res.json();
+      setStatus("saved", `✅ Ảnh đã lưu (HTTP) — ${String(doc._id || "").slice(-6)}`);
+      showToast("✅ Ảnh đã gửi (HTTP)!", "success");
+      saved = true;
+    } catch (e) {
+      setStatus("error", `❌ Lỗi HTTP: ${e.message}`);
+      showToast(`❌ ${e.message}`, "error", 5000);
+    }
+  }
+
+  if (saved) {
+    addPhotoThumb(dataUrl, cId);
+    currentDataUrl = null;
+    noteInput.value = "";
+  }
+
+  previewWrap.classList.remove("show");
+  cameraWrap.style.display = "block";
+  btnSend.disabled = false;
+}
+
+function addPhotoThumb(dataUrl, cId) {
+  savedPhotos.push({ dataUrl, cId, status: "sent" });
+  photoCount.textContent = savedPhotos.length;
+
+  const wrap = document.createElement("div");
+  wrap.className = "photo-thumb";
+
+  const img = document.createElement("img");
+  img.src = dataUrl;
+  img.alt = `Ảnh ${savedPhotos.length}`;
+
+  const badge = document.createElement("div");
+  badge.className = "status-badge";
+  badge.textContent = "✅";
+
+  const rm = document.createElement("button");
+  rm.className = "remove-btn";
+  rm.textContent = "×";
+  rm.title = "Xóa khỏi danh sách xem (không xóa trên server)";
+  rm.onclick = () => {
+    wrap.remove();
+  };
+
+  wrap.appendChild(img);
+  wrap.appendChild(badge);
+  wrap.appendChild(rm);
+  photoList.appendChild(wrap);
+}
+
+async function handleFileUpload(files) {
+  const maxW = 1600;
+  const maxH = 1200;
+
+  for (const file of Array.from(files)) {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const srcDataUrl = e.target.result;
+      // Tối ưu thêm: resize ảnh từ thư viện nếu quá lớn
+      const img = new Image();
+      img.onload = async () => {
+        let w = img.width;
+        let h = img.height;
+        const scale = Math.min(maxW / w, maxH / h, 1);
+        if (scale < 1) {
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          const resized = canvas.toDataURL("image/jpeg", 0.8);
+          await sendPhoto(resized);
+        } else {
+          await sendPhoto(srcDataUrl);
+        }
+      };
+      img.onerror = async () => {
+        // Nếu có lỗi khi đọc ảnh, gửi nguyên bản để tránh mất dữ liệu
+        await sendPhoto(srcDataUrl);
+      };
+      img.src = srcDataUrl;
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+btnCapture.addEventListener("click", captureFrame);
+
+btnFlip.addEventListener("click", () => {
+  if (!hasMediaDevices) return;
+  startCamera(facingMode === "environment" ? "user" : "environment");
+});
+
+btnSend.addEventListener("click", () => sendPhoto(currentDataUrl));
+
+btnRetake.addEventListener("click", () => {
+  previewWrap.classList.remove("show");
+  cameraWrap.style.display = "block";
+  currentDataUrl = null;
+});
+
+fileInputAlt.addEventListener("change", (e) => handleFileUpload(e.target.files));
+fileInput.addEventListener("change", (e) => handleFileUpload(e.target.files));
+
+clauseSelect.addEventListener("change", (e) => {
+  clauseId = e.target.value;
+});
+
+if (surveyId) {
+  connectSocket();
+  startCamera("environment");
+} else {
+  cameraWrap.style.display = "none";
+  noCamera.classList.add("show");
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && surveyId && !stream && hasMediaDevices) {
+    startCamera(facingMode);
+  }
+});
+
+window.addEventListener("beforeunload", () => {
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  if (socketConn) socketConn.disconnect();
+});
+</script>
+</body>
+</html>

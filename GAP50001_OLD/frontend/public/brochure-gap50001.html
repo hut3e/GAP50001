@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>ISO 50001·GAP – Brochure chức năng &amp; giao diện</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #020617;
+      color: #e5f2ff;
+      line-height: 1.6;
+    }
+    a { color: #38bdf8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+    h1, h2, h3 {
+      margin: 0 0 12px;
+      font-weight: 700;
+    }
+    h1 {
+      font-size: 32px;
+      color: #38bdf8;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    h2 {
+      font-size: 22px;
+      margin-top: 32px;
+      color: #fbbf24;
+    }
+    h3 {
+      font-size: 18px;
+      margin-top: 24px;
+      color: #93c5fd;
+    }
+    p { margin: 0 0 10px; }
+    .hero {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: flex-start;
+      margin-bottom: 30px;
+    }
+    .hero-left { flex: 1 1 260px; }
+    .hero-right {
+      flex: 1 1 260px;
+      border-radius: 16px;
+      padding: 16px 18px;
+      background: radial-gradient(circle at top left, #0ea5e9 0, #020617 55%);
+      border: 1px solid rgba(56,189,248,0.35);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: rgba(15,23,42,0.9);
+      border: 1px solid rgba(56,189,248,0.4);
+      color: #e0f2fe;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 16px;
+      margin-top: 10px;
+    }
+    .card {
+      background: #020617;
+      border-radius: 14px;
+      border: 1px solid rgba(56,189,248,0.18);
+      padding: 14px 16px;
+    }
+    .card h3 { margin-top: 0; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      border: 1px solid rgba(148,163,184,0.4);
+      color: #bae6fd;
+      background: rgba(15,23,42,0.9);
+      margin: 0 6px 6px 0;
+    }
+    ul { padding-left: 20px; margin: 6px 0 10px; }
+    li { margin-bottom: 4px; }
+    .section {
+      background: radial-gradient(circle at top left, rgba(56,189,248,0.20), rgba(15,23,42,1) 60%);
+      border-radius: 18px;
+      padding: 18px 20px;
+      border: 1px solid rgba(56,189,248,0.25);
+      margin-top: 18px;
+    }
+    .section.alt {
+      background: radial-gradient(circle at top left, rgba(234,179,8,0.16), rgba(15,23,42,1) 60%);
+      border-color: rgba(234,179,8,0.3);
+    }
+    .kpi-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 4px;
+    }
+    .kpi {
+      flex: 0 0 auto;
+      min-width: 120px;
+      background: rgba(15,23,42,0.9);
+      border-radius: 12px;
+      padding: 6px 10px;
+      border: 1px solid rgba(148,163,184,0.3);
+      font-size: 12px;
+    }
+    .kpi strong { display: block; font-size: 16px; color: #e5e7eb; }
+    code {
+      font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      background: rgba(15,23,42,0.9);
+      padding: 2px 4px;
+      border-radius: 4px;
+      border: 1px solid rgba(30,64,175,0.5);
+    }
+    hr {
+      border: none;
+      border-top: 1px dashed rgba(148,163,184,0.4);
+      margin: 28px 0 20px;
+    }
+    @media (max-width: 720px) {
+      h1 { font-size: 26px; }
+      .hero-right { margin-top: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero-left">
+        <h1>ISO 50001·GAP – Field Survey Tool</h1>
+        <p><strong>Nền tảng số hóa toàn bộ quá trình đánh giá GAP ISO 50001:2018</strong> – từ lập kế hoạch, khảo sát hiện trường, chấm điểm theo điều khoản §4–§10, quản trị rủi ro, hành động khắc phục, quản lý bằng chứng đến xuất báo cáo DOCX chuẩn in ấn.</p>
+        <p>Ứng dụng được thiết kế bởi chuyên gia tư vấn &amp; lập trình full stack với hơn 20 năm kinh nghiệm đa ngành, đáp ứng:</p>
+        <ul>
+          <li>Bộ tiêu chuẩn ISO 50001:2018 và họ ISO 5000x (50002, 50003, 50006, 50015, 50021,...)</li>
+          <li>Yêu cầu pháp luật Việt Nam về sử dụng năng lượng tiết kiệm và hiệu quả</li>
+          <li>Các cách tiếp cận đánh giá: theo điều khoản, theo rủi ro, theo quá trình, theo SEU/Khu vực/Thiết bị</li>
+        </ul>
+        <span class="badge">
+          <span>✅ Chuẩn in ấn DOCX – Sẵn sàng gửi khách hàng</span>
+        </span>
+      </div>
+
+      <div class="hero-right">
+        <h2 style="margin-bottom:8px;">Tổng quan kỹ thuật</h2>
+        <div class="grid">
+          <div>
+            <p><strong>Kiến trúc</strong></p>
+            <ul>
+              <li>Frontend: React + Vite, giao diện dark hiện đại</li>
+              <li>Backend: Node.js / Express, REST APIs</li>
+              <li>Database: MongoDB với schema linh hoạt</li>
+            </ul>
+          </div>
+          <div>
+            <p><strong>Triển khai</strong></p>
+            <ul>
+              <li>Docker Compose: backend, frontend, MongoDB, Nginx</li>
+              <li>Nginx reverse proxy, phục vụ SPA và API</li>
+              <li>Tương thích triển khai on-premise hoặc cloud</li>
+            </ul>
+          </div>
+        </div>
+        <p style="font-size:13px;margin-top:10px;">
+          Ứng dụng hỗ trợ <strong>Socket.IO</strong> cho đồng bộ ảnh từ điện thoại, <strong>Multer</strong> cho upload tài liệu, và <strong>docx</strong> để dựng báo cáo Word chuẩn A4 kèm hình ảnh &amp; bảng biểu tự động.
+        </p>
+      </div>
+    </section>
+
+    <!-- CHỨC NĂNG CHÍNH -->
+    <h2>1. Luồng làm việc &amp; các bước khảo sát GAP</h2>
+    <p>Giao diện chính là wizard 7 bước với menu bên trái, giúp chuyên gia đi xuyên suốt quá trình đánh giá:</p>
+
+    <div class="grid">
+      <div class="card">
+        <h3>1.1. Tổ chức &amp; Khảo sát</h3>
+        <ul>
+          <li>Thông tin khảo sát: mã khảo sát, ngày khảo sát, phiên bản, tiêu đề báo cáo, mục tiêu, tóm tắt điều hành.</li>
+          <li>Thông tin khách hàng: tên tổ chức, nhà máy, địa chỉ, ngành, số CBCNV, NL tiêu thụ/năm, trạng thái chứng nhận ISO 50001, cờ “cơ sở sử dụng NL trọng điểm”.</li>
+          <li>Đoàn tư vấn: đơn vị tư vấn, giấy phép, Lead Auditor, team, số chứng chỉ, tiêu chuẩn áp dụng.</li>
+          <li>Kế hoạch đánh giá GAP: mã kế hoạch/hợp đồng, đợt khảo sát, mã KH nội bộ, tuyến đường, khoảng thời gian, danh sách auditors.</li>
+          <li>Khung pháp lý áp dụng: quick-check các văn bản Luật 50/2010/QH12, Luật 77/2025/QH15, Nghị định 30/2026, TT 25/2020/TT-BCT, TT 25/2020, TT 38/2014, TT 36/2016, NĐ 06/2022,…</li>
+          <li>Phụ lục 14: CRUD bảng A.1 (Pháp luật VN) &amp; A.2 (Tiêu chuẩn ISO 500xx), tích hợp vào export báo cáo.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>1.2. Đánh giá §4–§10 (Chi tiết điều khoản)</h3>
+        <ul>
+          <li>Danh mục yêu cầu đối chiếu từ §4 đến §10 được cấu hình sẵn trong <code>GAP_CHECKLIST</code> kèm trọng số &amp; phân loại (Tài liệu, Thực hành, Đo lường, Lãnh đạo, Pháp lý).</li>
+          <li>Score thang 0–5 cho từng điều khoản, màu sắc &amp; mô tả theo mức độ đáp ứng (Chưa triển khai ⇔ Hoàn toàn đáp ứng).</li>
+          <li>Ghi chú chính &amp; <strong>nhiều “Ghi chú bổ sung” động</strong> với nút “+Add”, lưu trong <code>responses[id].extra_notes</code>.</li>
+          <li>Tự động thống kê: tổng số yêu cầu, số điều khoản Nghiêm trọng, Khoảng cách lớn, Cần cải thiện, Phù hợp; tính % clause cần cải thiện nhất quán với điểm trung bình GAP.</li>
+          <li>Đặc biệt cho §6.3.4:
+            <ul>
+              <li>Modal “Yếu tố tĩnh” (Static variables) – CRUD danh sách yếu tố tĩnh.</li>
+              <li>Modal “Biến liên quan” (Related variables) – CRUD biến liên quan SEU / EnPI.</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>1.3. Ma trận rủi ro</h3>
+        <ul>
+          <li>Danh mục rủi ro chia thành 5 nhóm: Pháp lý &amp; Quy định, Vận hành &amp; Kỹ thuật, Dữ liệu &amp; Đo lường, Tổ chức &amp; Con người, Chiến lược &amp; Tài chính.</li>
+          <li>Mỗi rủi ro có thể:
+            <ul>
+              <li>Chấm L (likelihood) &amp; I (impact) trên thang 1–5.</li>
+              <li>Kèm theo mô tả kiểm soát hiện tại, khuyến nghị, deadline.</li>
+            </ul>
+          </li>
+          <li><strong>CRUD rủi ro</strong> theo nhóm: thêm/sửa/xóa rủi ro tuỳ khách hàng, lưu vào <code>risk_items</code> và đồng bộ sang <code>risk_assessments</code>.</li>
+          <li>Tự động phân loại: THẤP, TRUNG BÌNH, CAO (L×I ≥ 9), NGHIÊM TRỌNG (L×I ≥ 16) cho dashboard &amp; báo cáo.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>1.4. Tiếp cận quá trình</h3>
+        <ul>
+          <li>Danh sách quy trình năng lượng chính (PR-01 → PR-09) với owner, tần suất.</li>
+          <li>Score GAP 0–5 cho từng quy trình, kèm 3 khối mô tả:
+            <ul>
+              <li>Phát hiện khoảng cách (finding)</li>
+              <li>Bằng chứng (evidence)</li>
+              <li>Hành động đề xuất (action)</li>
+            </ul>
+          </li>
+          <li>KPI: số quy trình đã đánh giá, số quy trình có khoảng cách (score ≤ 2), số quy trình phù hợp (score ≥ 4).</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>1.5. Nhà xưởng &amp; Thiết bị</h3>
+        <ul>
+          <li>Quản lý danh sách khu vực/khu xưởng:
+            <ul>
+              <li>Thông tin: tên, loại khu vực, %NL, operator, tiềm năng TKNL.</li>
+              <li>Cờ đánh dấu SEU, score GAP cho khu vực.</li>
+            </ul>
+          </li>
+          <li>Danh sách thiết bị theo từng khu vực (loại, công suất, tuổi, tình trạng, finding &amp; recommendation).</li>
+          <li>Thống kê: số khu vực, số SEU, tổng số thiết bị, số thiết bị kém.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>1.6. Action Plan (Hành động khắc phục)</h3>
+        <ul>
+          <li>Tự động gợi ý hành động từ các điều khoản có score 1–3 (GAP), cho phép mở modal chi tiết:</li>
+          <li>Trong modal một điều khoản:
+            <ul>
+              <li>Hiển thị thông tin GAP (id, tiêu đề, score, chế độ khuyến nghị).</li>
+              <li>Cho phép nhập ghi chú, khuyến nghị, deadline xử lý.</li>
+              <li>Tạo/sửa Action Plan với các trường: mã hành động, giai đoạn (P1–P4), mô tả hành động, người phụ trách, deadline, nguồn lực, trạng thái.</li>
+            </ul>
+          </li>
+          <li>KPI Action Plan: tổng số action, số action theo giai đoạn 1/2/3–4.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>1.7. Bằng chứng (tài liệu &amp; ảnh)</h3>
+        <ul>
+          <li><strong>Tại từng điều khoản</strong> (StepClauses): luôn có nút
+            <code>📷 Thêm / xem bằng chứng (tài liệu &amp; ảnh)</code>, liên kết với clause ID.</li>
+          <li>Khi bấm lần đầu:
+            <ul>
+              <li>Hệ thống tự động <strong>tạo phiên khảo sát trong MongoDB (auto-save)</strong> nếu chưa có.</li>
+              <li>Mở modal <strong>EvidenceClauseModal</strong> cho phép:
+                <ul>
+                  <li>Upload file: doc, docx, pdf, xls, xlsx, csv, jpg, jpeg, png, gif, webp…</li>
+                  <li>Chụp ảnh từ camera laptop.</li>
+                  <li>Chụp ảnh từ điện thoại thông qua QR code + Socket.IO (đồng bộ real-time).</li>
+                  <li>Xem, tải, xóa bằng chứng riêng cho điều khoản đó.</li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+          <li><strong>Step Evidence</strong> (Bước riêng):
+            <ul>
+              <li>Upload &amp; chụp ảnh theo điều khoản được chọn.</li>
+              <li>Bộ lọc nâng cao: theo điều khoản, loại, nguồn, từ khóa.</li>
+              <li>Danh sách tất cả bằng chứng của phiên với CRUD đầy đủ (sửa clauseId, note; xem/tải; xoá).</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>1.8. Xuất báo cáo GAP (DOCX)</h3>
+        <ul>
+          <li>Dashboard tổng hợp: điểm TB tổng, số clause Nghiêm trọng / Khoảng cách lớn / Cần cải thiện / Phù hợp; số rủi ro cao, số action plan.</li>
+          <li>Biểu đồ điểm TB theo điều khoản §4–§10, thanh điểm chi tiết, bảng tóm tắt.</li>
+          <li>Nút <strong>“Xuất DOCX”</strong> dựng báo cáo Word tiếng Việt chuẩn in ấn, bao gồm:
+            <ul>
+              <li>Bối cảnh, tổ chức, pháp lý, phụ lục 14.</li>
+              <li>Kết quả chấm điểm chi tiết &amp; nhận xét.</li>
+              <li>Ma trận rủi ro (kể cả rủi ro tùy biến từ CRUD).</li>
+              <li>Site/Zone/SEU, thiết bị, Action Plan.</li>
+              <li>Phụ lục bằng chứng theo điều khoản, <strong>auto scale ảnh trong bảng A4</strong>.</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <hr>
+
+    <!-- QUẢN TRỊ NỘI BỘ -->
+    <h2>2. Khu vực Quản trị (Admin Dashboard)</h2>
+    <p>Khu vực quản trị dành cho Nhà quản trị hệ thống, tách biệt khỏi wizard khảo sát. Có thể mở từ:</p>
+    <ul>
+      <li>Nút <strong>“👑 Admin dashboard”</strong> ở thanh trên cùng (TopBar).</li>
+      <li>Nhóm menu <strong>“Quản trị hệ thống”</strong> trong sidebar:
+        <code>Quản trị khách hàng · Quản trị Auditors · Quản trị Logistics &amp; Khách sạn · Form Export báo cáo</code>.
+      </li>
+    </ul>
+
+    <div class="section">
+      <h3>2.1. Quản trị GAP &amp; Kế hoạch</h3>
+      <p>Tab mặc định, hiển thị từng phiên GAP với thông tin kế hoạch và logistics liên quan.</p>
+      <div class="kpi-row">
+        <div class="kpi">
+          <span>Tổng kế hoạch GAP</span>
+          <strong>n phiên</strong>
+        </div>
+        <div class="kpi">
+          <span>Chuyến đi</span>
+          <strong>t trips</strong>
+        </div>
+        <div class="kpi">
+          <span>Số lượt người</span>
+          <strong>p người</strong>
+        </div>
+      </div>
+      <ul>
+        <li>Bảng: Mã khảo sát, khách hàng/cơ sở, kế hoạch/đợt, thời gian, đoàn đánh giá, tóm tắt logistics.</li>
+        <li>Từ mỗi dòng có thể:
+          <ul>
+            <li><strong>Sửa khách hàng</strong> cho phiên đó.</li>
+            <li><strong>Sửa auditor</strong> (đơn vị tư vấn, lead, team) cho phiên đó.</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <div class="section alt">
+      <h3>2.2. Quản trị Khách hàng</h3>
+      <p>Tập trung vào đối tượng khách hàng – mỗi hàng là một tổ chức/cơ sở, gom từ nhiều phiên GAP.</p>
+      <ul>
+        <li>Thông tin: Khách hàng, cơ sở, ngành, NL tiêu thụ, trạng thái chứng nhận, số phiên GAP, phiên gần nhất.</li>
+        <li>Nút <strong>“Sửa khách hàng…”</strong>:
+          <ul>
+            <li>Mở modal chọn phiên GAP đại diện (đã khảo sát khách này).</li>
+            <li>Sau đó mở modal sửa chi tiết client của phiên đó và lưu trực tiếp vào MongoDB bằng <code>PUT /api/surveys/:id</code>.</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h3>2.3. Quản trị Auditors</h3>
+      <p>Giúp quản lý nguồn lực đánh giá viên trên toàn bộ chương trình GAP.</p>
+      <ul>
+        <li>Danh sách auditor: tên, vai trò (Lead/Team), tổ chức, số phiên tham gia.</li>
+        <li>Nút <strong>“Sửa auditor…”</strong>:
+          <ul>
+            <li>Mở modal chọn một phiên GAP mà auditor này tham gia.</li>
+            <li>Mở modal sửa <code>verifier.org / verifier.lead / verifier.team</code> của phiên đó, lưu lại qua API.</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <div class="section alt">
+      <h3>2.4. Quản trị Logistics &amp; Khách sạn</h3>
+      <p>Dùng nội bộ để quản trị chi phí &amp; tổ chức đi lại / lưu trú cho các chuyến khảo sát.</p>
+      <ul>
+        <li>Mỗi dòng = một chuyến đi trong <code>logistics_trips[]</code>:
+          <ul>
+            <li>Mã khảo sát, khách hàng, loại (air/road/water), nhà cung cấp (hãng bay, bus, taxi...), tuyến đường, thời gian, số người, số phòng, khách sạn.</li>
+          </ul>
+        </li>
+        <li>CRUD:
+          <ul>
+            <li><strong>Sửa:</strong> mở modal “Sửa chuyến Logistics / Khách sạn” cho phép đổi loại, tuyến, ngày, người/phòng, khách sạn rồi <code>PUT</code> lại toàn bộ survey.</li>
+            <li><strong>Xóa:</strong> xoá mục khỏi <code>logistics_trips</code> và cập nhật DB.</li>
+          </ul>
+        </li>
+        <li>Dữ liệu logistics được tách rõ là “Quản trị nội bộ – không xuất báo cáo GAP gửi khách hàng”.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h3>2.5. Form Export báo cáo</h3>
+      <p>Tab hỗ trợ Nhà quản trị xuất báo cáo DOCX cho bất kỳ phiên GAP nào, độc lập với wizard.</p>
+      <ul>
+        <li>Bảng: Mã khảo sát, khách hàng, ngày khảo sát, lead auditor.</li>
+        <li>Nút <strong>“Xuất DOCX”</strong>:
+          <ul>
+            <li>Gọi API <code>POST /api/iso50001/gap/generate</code> với toàn bộ document survey (bao gồm responses, risk, site, actions, evidence,…).</li>
+            <li>Tải file Word xuống máy người dùng, đặt tên theo <code>ISO50001_GAP_[ref_no].docx</code>.</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <hr>
+
+    <h2>3. Công nghệ &amp; Kiểm soát chất lượng</h2>
+    <ul>
+      <li><strong>MongoDB</strong>: dùng schema linh hoạt (<code>strict:false</code>) cho các trường:
+        <code>responses</code>, <code>site_assessments</code>, <code>action_plan</code>, <code>risk_items</code>, <code>legal_registry</code>, <code>iso_standards_registry</code>, <code>certification_roadmap</code>, <code>logistics_trips</code>.</li>
+      <li><strong>Upload &amp; Bằng chứng</strong>: Multer cấu hình giới hạn dung lượng, định dạng file; middleware xử lý lỗi; static route <code>/uploads</code>; tích hợp với DOCX export.</li>
+      <li><strong>Ổn định kết nối DB</strong>: middleware kiểm tra trạng thái MongoDB, timeout truy vấn, trả mã lỗi 503 với thông báo tiếng Việt thân thiện.</li>
+      <li><strong>UI/UX</strong>: chủ đề dark, typography tối ưu in ấn (FONT label/body/lead/title), card &amp; KPIBar, modal có độ tương phản cao, responsive.</li>
+    </ul>
+
+    <p style="margin-top:16px;">
+      <strong>ISO 50001·GAP</strong> là “bộ công cụ số hóa” toàn bộ chuỗi giá trị của hoạt động khảo sát, đánh giá GAP và tư vấn ISO 50001,
+      giúp chuyên gia:
+      <strong>tiết kiệm thời gian, chuẩn hóa dữ liệu, giảm sai sót, và tạo báo cáo chuyên nghiệp cho khách hàng chỉ với một cú click.</strong>
+    </p>
+  </div>
+</body>
+</html>
+

@@ -1,0 +1,24 @@
+{
+  "name": "iso50001-gap-survey",
+  "version": "1.0.0",
+  "description": "ISO 50001:2018 Field GAP Survey Tool — Risk / Process / Site / Equipment Approach + DOCX Report",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js",
+    "test": "node backend/test.gap.js",
+    "frontend:build": "cd frontend && npm ci && npm run build",
+    "frontend:dev": "cd frontend && npm run dev"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "docx": "^9.5.3",
+    "express": "^4.18.2",
+    "mongoose": "^8.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": ["iso50001","gap-analysis","enms","energy-management","docx","consulting"],
+  "license": "MIT"
+}
