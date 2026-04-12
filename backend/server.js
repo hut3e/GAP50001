@@ -57,11 +57,22 @@ app.use(helmet({
 }));
 app.disable("x-powered-by");
 
-// Rate limiting cho login (chống brute force)
+// ── Rate Limiting (ISO 27001 A.9.4.2 — Secure log-on procedures) ──
+// Login: nghiêm ngặt — chống brute force
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 phút
-  max: 20, // Tối đa 20 lần thử
+  max: 10, // Tối đa 10 lần thử login / IP / 15 phút
   message: { error: "Quá nhiều lần thử đăng nhập. Vui lòng đợi 15 phút." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip, // Rate limit theo IP
+});
+
+// API chung: bảo vệ khỏi DDoS nhẹ
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200, // 200 req / IP / 15 phút cho API chung
+  message: { error: "Quá nhiều request. Vui lòng thử lại sau." },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -80,8 +91,9 @@ app.use("/uploads", (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, "uploads"), { dotfiles: "deny" }));
 
-// Auth routes (public: login, protected: users CRUD)
-app.use("/api/auth", loginLimiter, authRoutes);
+// Auth routes — login có rate-limit riêng, các routes khác có auth middleware
+app.use("/api/auth/login", loginLimiter);
+app.use("/api/auth", apiLimiter, authRoutes);
 
 // API routes — bảo vệ bằng auth (optional cho backward compatibility)
 app.use("/api/surveys", authOptional, surveyRoutes);

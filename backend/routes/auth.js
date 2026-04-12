@@ -1,15 +1,56 @@
 /**
  * Auth routes — Login, Logout, Profile, User CRUD (Admin), Login stats
+ * 
+ * Password Security: SHA-256 pre-hash + bcrypt (NIST SP 800-132 compliant)
+ * ┌─────────────┐    ┌────────────────┐    ┌──────────────────┐
+ * │ Raw password │ ─> │ SHA-256 digest │ ─> │ bcrypt(salt=12)  │ ─> DB
+ * └─────────────┘    └────────────────┘    └──────────────────┘
+ * 
+ * Lý do dùng SHA-256 + bcrypt:
+ * - SHA-256: đảm bảo password không vượt 72 bytes (bcrypt limit) và thêm 1 lớp hash
+ * - bcrypt (cost=12): chống brute-force bằng adaptive hash, resistant GPU attacks
+ * - Theo ISO 27001 A.10.1.1: Cryptographic controls
  */
 const express = require("express");
-const bcrypt = require("bcryptjs");
-const User = require("../models/User");
+const crypto  = require("crypto");
+const bcrypt  = require("bcryptjs");
+const User    = require("../models/User");
 const { signToken, authRequired, adminRequired } = require("../middleware/auth");
 
 const router = express.Router();
 const SALT_ROUNDS = 12;
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 phút
+
+// ── SHA-256 + bcrypt helpers ──────────────────────────────
+/** Pre-hash password bằng SHA-256 trước khi đưa vào bcrypt */
+function sha256(plain) {
+  return crypto.createHash("sha256").update(plain, "utf8").digest("hex");
+}
+
+/** Hash password: SHA-256 → bcrypt */
+async function hashPassword(plainPassword) {
+  const sha = sha256(plainPassword);
+  return bcrypt.hash(sha, SALT_ROUNDS);
+}
+
+/** Verify password: SHA-256 → bcrypt.compare */
+async function verifyPassword(plainPassword, hashedPassword) {
+  const sha = sha256(plainPassword);
+  return bcrypt.compare(sha, hashedPassword);
+}
+
+// ── Password strength validation (ISO 27001 A.9.4.3) ─────
+function validatePasswordStrength(password) {
+  const errors = [];
+  if (!password || password.length < 8) errors.push("Mật khẩu phải tối thiểu 8 ký tự.");
+  if (password.length > 128) errors.push("Mật khẩu tối đa 128 ký tự.");
+  if (!/[A-Z]/.test(password)) errors.push("Mật khẩu phải chứa ít nhất 1 chữ hoa.");
+  if (!/[a-z]/.test(password)) errors.push("Mật khẩu phải chứa ít nhất 1 chữ thường.");
+  if (!/[0-9]/.test(password)) errors.push("Mật khẩu phải chứa ít nhất 1 chữ số.");
+  if (!/[!@#$%^&*()_+\-=\[\]{}|;':\",./<>?]/.test(password)) errors.push("Mật khẩu phải chứa ít nhất 1 ký tự đặc biệt.");
+  return errors;
+}
 
 // ──────────────────────────────────────────────────────────
 // SEED admin mặc định khi khởi động (chỉ tạo nếu chưa có user nào)
@@ -18,7 +59,7 @@ async function seedDefaultAdmin() {
   try {
     const count = await User.countDocuments();
     if (count === 0) {
-      const hash = await bcrypt.hash("ToanAntigravity2026!&", SALT_ROUNDS);
+      const hash = await hashPassword("ToanAntigravity2026!&");
       await User.create({
         username: "hut3e",
         password: hash,
@@ -28,7 +69,7 @@ async function seedDefaultAdmin() {
         isActive: true,
         createdBy: "system",
       });
-      console.log("✅ Default admin created: hut3e");
+      console.log("✅ Default admin created: hut3e (SHA-256 + bcrypt)");
     }
   } catch (err) {
     console.error("[Auth] Seed admin error:", err.message);
@@ -47,13 +88,24 @@ router.post("/login", async (req, res) => {
     if (!user) return res.status(401).json({ error: "Tài khoản không tồn tại." });
     if (!user.isActive) return res.status(403).json({ error: "Tài khoản đã bị khóa. Liên hệ Administrator." });
 
-    // Kiểm tra lock
+    // Kiểm tra account lock
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       const remaining = Math.ceil((user.lockedUntil - Date.now()) / 60000);
       return res.status(423).json({ error: `Tài khoản bị khóa tạm thời. Thử lại sau ${remaining} phút.` });
     }
 
-    const valid = await bcrypt.compare(password, user.password);
+    // Kiểm tra password — hỗ trợ cả legacy (bcrypt thuần) và mới (SHA-256 + bcrypt)
+    let valid = await verifyPassword(password, user.password);
+    if (!valid) {
+      // Fallback: thử bcrypt thuần cho tài khoản cũ chưa migrate
+      valid = await bcrypt.compare(password, user.password);
+      if (valid) {
+        // Migrate sang SHA-256 + bcrypt
+        user.password = await hashPassword(password);
+        console.log(`[Auth] Migrated password to SHA-256+bcrypt for: ${user.username}`);
+      }
+    }
+
     if (!valid) {
       user.failedLoginCount = (user.failedLoginCount || 0) + 1;
       user.loginHistory.push({
@@ -65,9 +117,13 @@ router.post("/login", async (req, res) => {
       // Lock account sau quá nhiều lần sai
       if (user.failedLoginCount >= MAX_FAILED_ATTEMPTS) {
         user.lockedUntil = new Date(Date.now() + LOCK_DURATION_MS);
+        console.warn(`[Auth] Account locked: ${user.username} (${user.failedLoginCount} failed attempts)`);
       }
       await user.save();
-      return res.status(401).json({ error: "Mật khẩu không đúng.", remaining: Math.max(0, MAX_FAILED_ATTEMPTS - user.failedLoginCount) });
+      return res.status(401).json({
+        error: "Mật khẩu không đúng.",
+        remaining: Math.max(0, MAX_FAILED_ATTEMPTS - user.failedLoginCount),
+      });
     }
 
     // Login thành công — reset fail count
@@ -123,15 +179,20 @@ router.put("/change-password", authRequired, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body || {};
     if (!currentPassword || !newPassword) return res.status(400).json({ error: "Thiếu mật khẩu cũ hoặc mới." });
-    if (newPassword.length < 8) return res.status(400).json({ error: "Mật khẩu mới phải tối thiểu 8 ký tự." });
+
+    // Validate password strength
+    const pwErrors = validatePasswordStrength(newPassword);
+    if (pwErrors.length > 0) return res.status(400).json({ error: pwErrors.join(" ") });
 
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const valid = await bcrypt.compare(currentPassword, user.password);
+    // Verify current password (hỗ trợ cả 2 format)
+    let valid = await verifyPassword(currentPassword, user.password);
+    if (!valid) valid = await bcrypt.compare(currentPassword, user.password);
     if (!valid) return res.status(401).json({ error: "Mật khẩu hiện tại không đúng." });
 
-    user.password = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    user.password = await hashPassword(newPassword);
     user.loginHistory.push({
       timestamp: new Date(),
       ip: req.ip || req.headers["x-forwarded-for"] || "unknown",
@@ -164,13 +225,16 @@ router.post("/users", authRequired, adminRequired, async (req, res) => {
   try {
     const { username, password, displayName, email, phone, role } = req.body || {};
     if (!username || !password) return res.status(400).json({ error: "username và password bắt buộc." });
-    if (password.length < 8) return res.status(400).json({ error: "Mật khẩu phải tối thiểu 8 ký tự." });
     if (!["admin", "auditor", "viewer"].includes(role)) return res.status(400).json({ error: "Role không hợp lệ." });
+
+    // Validate password strength
+    const pwErrors = validatePasswordStrength(password);
+    if (pwErrors.length > 0) return res.status(400).json({ error: pwErrors.join(" ") });
 
     const existing = await User.findOne({ username: username.trim().toLowerCase() });
     if (existing) return res.status(409).json({ error: "Tên tài khoản đã tồn tại." });
 
-    const hash = await bcrypt.hash(password, SALT_ROUNDS);
+    const hash = await hashPassword(password);
     const user = await User.create({
       username: username.trim().toLowerCase(),
       password: hash,
@@ -212,8 +276,12 @@ router.put("/users/:id", authRequired, adminRequired, async (req, res) => {
 router.put("/users/:id/reset-password", authRequired, adminRequired, async (req, res) => {
   try {
     const { newPassword } = req.body || {};
-    if (!newPassword || newPassword.length < 8) return res.status(400).json({ error: "Mật khẩu mới phải tối thiểu 8 ký tự." });
-    const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    
+    // Validate password strength
+    const pwErrors = validatePasswordStrength(newPassword || "");
+    if (pwErrors.length > 0) return res.status(400).json({ error: pwErrors.join(" ") });
+
+    const hash = await hashPassword(newPassword);
     const user = await User.findByIdAndUpdate(req.params.id, {
       $set: { password: hash, failedLoginCount: 0, lockedUntil: null },
     }, { new: true }).select("-password").lean();
