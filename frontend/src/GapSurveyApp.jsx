@@ -280,7 +280,7 @@ function LoadSurveyDropdown({ onLoadList, onSelect, apiBase }) {
 }
 
 // ── Sidebar ──────────────────────────────────────────────────────
-function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave, saveLoading, onLoadList, onLoadOne, onNewSurvey, apiUrl, surveyId, apiInfo, onOpenAdminTab, onOpenUserManagement }) {
+function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave, saveLoading, onLoadList, onLoadOne, onNewSurvey, apiUrl, surveyId, apiInfo, onOpenAdminTab, onOpenUserManagement, currentUser }) {
   return (
     <div style={{
       width: 260,
@@ -954,6 +954,7 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
             apiUrl={apiUrl}
             surveyId={surveyId}
             apiInfo={apiInfo}
+            currentUser={currentUser}
             onOpenAdminTab={(tabId, isKanban = false) => {
               if (isKanban) {
                 setKanbanInitialTab(tabId);
