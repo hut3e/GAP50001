@@ -360,9 +360,9 @@ function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave,
           { id: "checklist", label: "Quản trị điều khoản GAP", icon: "📝" },
           { id: "export", label: "Form Export báo cáo", icon: "📄" },
           { id: "calendar", label: "Quản trị Lịch & Jobs", icon: "🗓️", kanban: true },
-          { id: "telegram", label: "Cấu hình Telegram", icon: "📣", kanban: true },
-          { id: "user_management", label: "Quản trị người dùng", icon: "👥", userMgmt: true },
-        ].map((m) => (
+          { id: "telegram", label: "Cấu hình Telegram", icon: "📣", kanban: true, adminOnly: true },
+          { id: "user_management", label: "Quản trị người dùng", icon: "👥", userMgmt: true, adminOnly: true },
+        ].filter(m => !m.adminOnly || currentUser?.role === 'admin').map((m) => (
           <button
             key={m.id}
             type="button"
@@ -887,7 +887,7 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
           <div style={{ padding: "24px 32px 32px" }}>
             <SectionHeader icon="📊" title="Kanban & Lịch đánh giá GAP" badge="Kanban · Lịch · Thống kê · Telegram" />
             <Suspense fallback={<div style={{ color: C.t2, fontSize: 15 }}>Đang tải Kanban dashboard…</div>}>
-              <KanbanDashboard apiUrl={apiUrl} initialTab={kanbanInitialTab} />
+              <KanbanDashboard apiUrl={apiUrl} initialTab={kanbanInitialTab} currentUser={currentUser} />
             </Suspense>
           </div>
         </div>

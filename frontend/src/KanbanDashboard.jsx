@@ -36,7 +36,7 @@ const VIEWS = [
   { id: "kanban",   label: "Kanban",     icon: "⬜" },
   { id: "calendar", label: "Lịch",       icon: "📅" },
   { id: "stats",    label: "Thống kê",   icon: "📊" },
-  { id: "telegram", label: "Telegram",   icon: "✉️"  },
+  { id: "telegram", label: "Telegram",   icon: "✉️", adminOnly: true },
 ];
 
 const MONTHS_VN = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
@@ -1552,7 +1552,7 @@ function JobModal({ job, dateKey, onClose, onSave, onDelete, apiUrl, onSendTeleg
 }
 
 // ── Main KanbanDashboard ───────────────────────────────────────────
-export default function KanbanDashboard({ apiUrl, initialTab = "kanban" }) {
+export default function KanbanDashboard({ apiUrl, initialTab = "kanban", currentUser }) {
   const [view, setView]         = useState(initialTab);
   const [surveys, setSurveys]   = useState([]);
   const [loading, setLoading]   = useState(false);
@@ -1768,7 +1768,7 @@ export default function KanbanDashboard({ apiUrl, initialTab = "kanban" }) {
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         {/* View tabs */}
         <div style={{ display: "flex", gap: 4, background: C.bg2, borderRadius: RADIUS.lg, padding: 4, border: `1px solid ${C.bd0}` }}>
-          {VIEWS.map(v => (
+          {VIEWS.filter(v => !v.adminOnly || currentUser?.role === 'admin').map(v => (
             <button
               key={v.id}
               onClick={() => setView(v.id)}
