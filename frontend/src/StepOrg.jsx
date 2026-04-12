@@ -737,6 +737,19 @@ export default function StepOrg({ survey, setSurvey }) {
   const [isoModal, setIsoModal] = useState({ open: false, index: null });
   const [isoForm, setIsoForm] = useState({ standard_id: "", focus: "" });
 
+  // Legal Framework CRUD (Card "Xác định khung pháp lý áp dụng")
+  const [lfModal, setLfModal] = useState({ open: false, index: null });
+  const [lfForm, setLfForm] = useState({ code: "", subject: "", doc_type: "Thông tư", articles: "", threshold: "", status: "pending", note: "" });
+  const saveLf = () => {
+    const { code, subject, doc_type, articles, threshold, status, note } = lfForm;
+    if (!code?.trim()) return;
+    const next = [...(survey.legal_framework || [])];
+    const row = { code: code.trim(), subject: subject.trim(), doc_type, articles: articles.trim(), threshold: threshold.trim(), status, note: (note || "").trim() };
+    if (lfModal.index === null) next.push(row); else next[lfModal.index] = row;
+    setSurvey(p => ({ ...p, legal_framework: next, legal_status: { ...p.legal_status, [code.trim()]: status } }));
+    setLfModal({ open: false, index: null });
+  };
+
   const openLegalAdd = () => { setLegalForm({ code: "", subject: "", doc_type: "Thông tư", articles: "", threshold: "", status: "pending" }); setLegalModal({ open: true, index: null }); };
   const openLegalEdit = i => { const r = legalRegistry[i]; setLegalForm({ code: r.code || "", subject: r.subject || "", doc_type: r.doc_type || "Thông tư", articles: r.articles || "", threshold: r.threshold || "", status: r.status || "pending" }); setLegalModal({ open: true, index: i }); };
   const saveLegal = () => {
@@ -969,46 +982,136 @@ export default function StepOrg({ survey, setSurvey }) {
         </Grid>
       </Card>
 
-      {/* Legal applicability quick check */}
+      {/* Xác định khung pháp lý áp dụng — FULL CRUD */}
       <Card title="Xác định khung pháp lý áp dụng" icon="⚖️" accent={C.red}>
-        <div style={{ fontSize: 14, color: C.t1, marginBottom: 10 }}>Chọn trạng thái tuân thủ hiện tại với các văn bản pháp lý Việt Nam</div>
-        <Grid cols={2} gap={12} minCol="280px">
-          {[
-            ["Luật 50/2010/QH12, Luật 77/2025/QH15", "Luật Sử dụng NL tiết kiệm và HQ; Luật 77/2025/QH15"],
-            ["TT 25/2020/TT-BCT", "Quản lý NL tại cơ sở CN trọng điểm"],
-            ["TT 25/2020/TT-BCT", "Kiểm toán năng lượng (chu kỳ 3 năm)"],
-            ["TT 38/2014/TT-BCT", "Đào tạo quản lý NL (chứng chỉ EMR)"],
-            ["TT 36/2016/TT-BCT", "Dán nhãn năng lượng và MEPS (Thông tư 36/2016)"],
-            ["NĐ 06/2022/NĐ-CP", "Giảm phát thải KNK (nếu ≥3.000 tCO₂e)"],
-          ].map(([code, name], idx) => {
-            const s = survey.legal_status?.[code] || "pending";
-            const scol = s === "compliant" ? C.teal : s === "partial" ? C.amber : s === "non_compliant" ? C.red : C.grey2;
-            return (
-              <div key={`${code}-${idx}`} style={{
-                background: C.bg3, borderRadius: 7, padding: "7px 10px",
-                border: `1px solid ${scol}25`, display: "flex", flexDirection: "column", gap: 5
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontFamily: "'Fira Code',monospace", fontSize: 12.5, color: C.blueL }}>{code}</span>
-                  <Tag c={scol}>{s === "compliant" ? "✓ Tuân thủ" : s === "partial" ? "⚠ Một phần" : s === "non_compliant" ? "✗ Chưa TT" : "○ Chưa XĐ"}</Tag>
-                </div>
-                <div style={{ fontSize: 13, color: C.t1 }}>{name}</div>
-                <select value={s}
-                  onChange={e => setSurvey(p => ({ ...p, legal_status: { ...p.legal_status, [code]: e.target.value } }))}
-                  style={{
-                    background: C.bg4, border: `1px solid ${C.bd0}`, borderRadius: 5,
-                    padding: "3px 6px", color: C.t0, fontSize: 13, cursor: "pointer"
-                  }}>
-                  <option value="pending">○ Chưa xác định</option>
-                  <option value="compliant">✓ Tuân thủ</option>
-                  <option value="partial">⚠ Một phần</option>
-                  <option value="non_compliant">✗ Chưa tuân thủ</option>
-                  <option value="not_applicable">— Không áp dụng</option>
-                </select>
-              </div>
-            );
-          })}
-        </Grid>
+        <div style={{ fontSize: 14, color: C.t1, marginBottom: 12 }}>
+          Quản lý các văn bản pháp lý Việt Nam áp dụng cho cơ sở. Thêm, sửa, xóa và cập nhật trạng thái tuân thủ.
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {(() => {
+              const items = survey.legal_framework || [];
+              const total = items.length;
+              const compliant = items.filter(x => x.status === "compliant").length;
+              const partial = items.filter(x => x.status === "partial").length;
+              const nonComp = items.filter(x => x.status === "non_compliant").length;
+              return (
+                <>
+                  <Tag c={C.teal}>✓ {compliant}</Tag>
+                  <Tag c={C.amber}>⚠ {partial}</Tag>
+                  <Tag c={C.red}>✗ {nonComp}</Tag>
+                  <span style={{ color: C.t2, fontSize: 13 }}>/ {total} văn bản</span>
+                </>
+              );
+            })()}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {(!survey.legal_framework || survey.legal_framework.length === 0) && (
+              <Btn v="outline" sz="sm" onClick={() => {
+                const defaults = [
+                  { code: "Luật 50/2010/QH12", subject: "Luật Sử dụng NL tiết kiệm và hiệu quả", doc_type: "Luật", articles: "Toàn văn", threshold: "Mọi tổ chức", status: "pending", note: "" },
+                  { code: "Luật 77/2025/QH15", subject: "Luật Sử dụng NL tiết kiệm và hiệu quả (sửa đổi)", doc_type: "Luật", articles: "Toàn văn", threshold: "Mọi tổ chức", status: "pending", note: "" },
+                  { code: "NĐ 30/2026/NĐ-CP", subject: "Nghị định hướng dẫn Luật SDNLTK&HQ", doc_type: "Nghị định", articles: "Điều 4–38", threshold: "≥1.000 TOE/năm", status: "pending", note: "" },
+                  { code: "TT 25/2020/TT-BCT", subject: "Quản lý NL tại cơ sở CN trọng điểm; Kiểm toán NL (3 năm)", doc_type: "Thông tư", articles: "Điều 4–20", threshold: "≥1.000 TOE/năm", status: "pending", note: "" },
+                  { code: "TT 38/2014/TT-BCT", subject: "Đào tạo quản lý NL — Chứng chỉ EMR", doc_type: "Thông tư", articles: "Điều 3–12", threshold: "Cơ sở trọng điểm", status: "pending", note: "" },
+                  { code: "TT 36/2016/TT-BCT", subject: "Dán nhãn năng lượng và MEPS", doc_type: "Thông tư", articles: "Phụ lục I–VI", threshold: "Thiết bị thuộc danh mục", status: "pending", note: "" },
+                  { code: "NĐ 06/2022/NĐ-CP", subject: "Giảm phát thải KNK và bảo vệ tầng ô-dôn", doc_type: "Nghị định", articles: "Chương II–IV", threshold: "≥3.000 tCO₂e/năm", status: "pending", note: "" },
+                ];
+                setSurvey(p => ({ ...p, legal_framework: defaults }));
+              }}>📋 Tạo danh sách mặc định</Btn>
+            )}
+            <Btn v="outline" sz="sm" onClick={() => {
+              setLfForm({ code: "", subject: "", doc_type: "Thông tư", articles: "", threshold: "", status: "pending", note: "" });
+              setLfModal({ open: true, index: null });
+            }}>＋ Thêm văn bản</Btn>
+          </div>
+        </div>
+
+        <div style={{ overflowX: "auto", border: `1px solid ${C.bd0}`, borderRadius: 8 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FONT.body }}>
+            <thead>
+              <tr style={{ background: C.bg3 }}>
+                <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: `1px solid ${C.bd0}`, width: 36 }}>#</th>
+                <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: `1px solid ${C.bd0}`, minWidth: 160 }}>Mã văn bản</th>
+                <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: `1px solid ${C.bd0}` }}>Nội dung / Tên</th>
+                <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: `1px solid ${C.bd0}`, minWidth: 90 }}>Loại</th>
+                <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: `1px solid ${C.bd0}`, minWidth: 120 }}>Ngưỡng</th>
+                <th style={{ padding: "8px 10px", textAlign: "center", borderBottom: `1px solid ${C.bd0}`, minWidth: 130 }}>Trạng thái</th>
+                <th style={{ padding: "8px 10px", width: 110, borderBottom: `1px solid ${C.bd0}` }}>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(!survey.legal_framework || survey.legal_framework.length === 0) ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: 20, color: C.t3, textAlign: "center" }}>
+                    Chưa có văn bản pháp lý. Nhấn "📋 Tạo danh sách mặc định" hoặc "＋ Thêm văn bản" để bắt đầu.
+                  </td>
+                </tr>
+              ) : (survey.legal_framework || []).map((r, i) => {
+                const scol = r.status === "compliant" ? C.teal : r.status === "partial" ? C.amber : r.status === "non_compliant" ? C.red : C.grey2;
+                return (
+                  <tr key={i} style={{ background: i % 2 ? C.bg2 : "transparent" }}>
+                    <td style={{ padding: "7px 10px", borderBottom: `1px solid ${C.bd2}`, color: C.t2 }}>{i + 1}</td>
+                    <td style={{ padding: "7px 10px", borderBottom: `1px solid ${C.bd2}`, fontFamily: "'Fira Code',monospace", fontSize: 12.5, color: C.blueL, fontWeight: 600 }}>{r.code}</td>
+                    <td style={{ padding: "7px 10px", borderBottom: `1px solid ${C.bd2}`, color: C.t0 }}>
+                      <div>{r.subject}</div>
+                      {r.articles && <div style={{ fontSize: 12, color: C.t2, marginTop: 2 }}>📎 {r.articles}</div>}
+                    </td>
+                    <td style={{ padding: "7px 10px", borderBottom: `1px solid ${C.bd2}`, color: C.t1 }}>{r.doc_type}</td>
+                    <td style={{ padding: "7px 10px", borderBottom: `1px solid ${C.bd2}`, color: C.amber, fontSize: 12.5 }}>{r.threshold}</td>
+                    <td style={{ padding: "7px 10px", borderBottom: `1px solid ${C.bd2}`, textAlign: "center" }}>
+                      <select value={r.status || "pending"}
+                        onChange={e => {
+                          const next = [...(survey.legal_framework || [])];
+                          next[i] = { ...next[i], status: e.target.value };
+                          setSurvey(p => ({
+                            ...p,
+                            legal_framework: next,
+                            legal_status: { ...p.legal_status, [r.code]: e.target.value }
+                          }));
+                        }}
+                        style={{
+                          background: `${scol}15`, border: `1px solid ${scol}40`, borderRadius: 5,
+                          padding: "3px 6px", color: scol, fontSize: 12.5, cursor: "pointer", fontWeight: 600,
+                          width: "100%", maxWidth: 140
+                        }}>
+                        <option value="pending">○ Chưa XĐ</option>
+                        <option value="compliant">✓ Tuân thủ</option>
+                        <option value="partial">⚠ Một phần</option>
+                        <option value="non_compliant">✗ Chưa TT</option>
+                        <option value="not_applicable">— Không ÁD</option>
+                      </select>
+                    </td>
+                    <td style={{ padding: "6px 8px", borderBottom: `1px solid ${C.bd2}` }}>
+                      <Btn v="ghost" sz="sm" onClick={() => {
+                        const r2 = (survey.legal_framework || [])[i];
+                        setLfForm({
+                          code: r2.code || "", subject: r2.subject || "", doc_type: r2.doc_type || "Thông tư",
+                          articles: r2.articles || "", threshold: r2.threshold || "", status: r2.status || "pending",
+                          note: r2.note || ""
+                        });
+                        setLfModal({ open: true, index: i });
+                      }} sx={{ marginRight: 4 }}>Sửa</Btn>
+                      <Btn v="ghost" sz="sm" onClick={() => {
+                        if (confirm(`Xóa "${r.code}" khỏi danh sách?`)) {
+                          const next = (survey.legal_framework || []).filter((_, idx) => idx !== i);
+                          setSurvey(p => ({ ...p, legal_framework: next }));
+                        }
+                      }} sx={{ color: C.red }}>Xóa</Btn>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {(survey.legal_framework || []).length > 0 && (
+          <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+            <Btn v="ghost" sz="sm" onClick={() => {
+              if (confirm("Xóa tất cả văn bản pháp lý?")) setSurvey(p => ({ ...p, legal_framework: [] }));
+            }} sx={{ color: C.red, fontSize: 12 }}>🗑 Xóa tất cả</Btn>
+          </div>
+        )}
       </Card>
 
       {/* Phụ lục – Đăng ký tuân thủ pháp lý và tiêu chuẩn (CRUD) */}
@@ -1114,6 +1217,27 @@ export default function StepOrg({ survey, setSurvey }) {
           <Field label="Mã tiêu chuẩn" required><Input value={isoForm.standard_id} onChange={v => setIsoForm(f => ({ ...f, standard_id: v }))} placeholder="ISO 50001:2018" /></Field>
           <Field label="Nội dung / Vai trò trong dự án"><TA value={isoForm.focus} onChange={v => setIsoForm(f => ({ ...f, focus: v }))} rows={2} placeholder="Tiêu chuẩn gốc — EnMS Requirements" /></Field>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Btn v="ghost" sz="md" onClick={() => setIsoModal({ open: false, index: null })}>Hủy</Btn><Btn v="blue" sz="md" onClick={saveIso}>Lưu</Btn></div>
+        </div>
+      </Modal>
+
+      {/* Modal Khung pháp lý CRUD */}
+      <Modal open={lfModal.open} onClose={() => setLfModal({ open: false, index: null })} title={lfModal.index === null ? "Thêm văn bản pháp lý" : "Sửa văn bản pháp lý"} width={560}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <Field label="Mã văn bản *" required><Input value={lfForm.code} onChange={v => setLfForm(f => ({ ...f, code: v }))} placeholder="VD: TT 25/2020/TT-BCT, NĐ 30/2026/NĐ-CP" /></Field>
+          <Field label="Nội dung / Tên văn bản"><Input value={lfForm.subject} onChange={v => setLfForm(f => ({ ...f, subject: v }))} placeholder="Quản lý NL tại cơ sở CN trọng điểm" /></Field>
+          <Grid cols={2} gap={12}>
+            <Field label="Loại văn bản"><Sel value={lfForm.doc_type} onChange={v => setLfForm(f => ({ ...f, doc_type: v }))} options={DOC_TYPES.map(t => [t, t])} /></Field>
+            <Field label="Trạng thái tuân thủ"><Sel value={lfForm.status} onChange={v => setLfForm(f => ({ ...f, status: v }))} options={LEGAL_STATUS_OPT} /></Field>
+          </Grid>
+          <Grid cols={2} gap={12}>
+            <Field label="Điều khoản / Phạm vi"><Input value={lfForm.articles} onChange={v => setLfForm(f => ({ ...f, articles: v }))} placeholder="Điều 4–20" /></Field>
+            <Field label="Ngưỡng áp dụng"><Input value={lfForm.threshold} onChange={v => setLfForm(f => ({ ...f, threshold: v }))} placeholder="≥1.000 TOE/năm" /></Field>
+          </Grid>
+          <Field label="Ghi chú"><TA value={lfForm.note} onChange={v => setLfForm(f => ({ ...f, note: v }))} rows={2} placeholder="Ghi chú thêm..." /></Field>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <Btn v="ghost" sz="md" onClick={() => setLfModal({ open: false, index: null })}>Hủy</Btn>
+            <Btn v="blue" sz="md" onClick={saveLf}>Lưu</Btn>
+          </div>
         </div>
       </Modal>
 
