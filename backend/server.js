@@ -48,6 +48,7 @@ const MONGODB_URI =
 const MONGO_OPTIONS = { serverSelectionTimeoutMS: 8000, maxPoolSize: 10 };
 
 const app = express();
+app.set("trust proxy", 1); // Trust Nginx reverse proxy (cho rate-limiter đọc đúng IP client)
 
 // ── Security Hardening ──
 app.use(helmet({
