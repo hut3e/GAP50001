@@ -45,7 +45,7 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: H9M2Bexj5pg
       POSTGRES_DB: iso50001gap
-      JWT_SECRET: gap50001_prod_jwt_2026_$ecR3t!K3y
+      JWT_SECRET: gap50001_prod_jwt_2026_SecR3tK3y_ISO27001
     depends_on:
       mongo:
         condition: service_healthy
