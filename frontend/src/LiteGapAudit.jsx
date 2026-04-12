@@ -12,7 +12,7 @@ import { C, FONT, GAP_CHECKLIST as DEFAULT_CHECKLIST, SCORE_CFG } from "./gap.ui
 import { Btn, Tag, Field, Input, TA, Sel, Modal, Grid } from "./gap.atoms.jsx";
 
 const TABS = [
-  { id: "info", icon: "🏭", label: "Thông giải" },
+  { id: "info", icon: "🏭", label: "Thông tin chung" },
   { id: "check", icon: "📋", label: "Đánh giá GAP" },
   { id: "site", icon: "🏗️", label: "Hiện trường" },
   { id: "export", icon: "📄", label: "Xuất báo cáo" },
