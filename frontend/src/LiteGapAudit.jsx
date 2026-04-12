@@ -85,13 +85,22 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
   const customGaps = Array.isArray(survey.lite_custom_gaps) ? survey.lite_custom_gaps : [];
   const setCustomGaps = arr => setSurvey(p => ({ ...p, lite_custom_gaps: arr }));
 
-  // Checklist merged with custom gaps
+  const liteOverrides = survey.lite_overrides || {};
+  const setLiteOverrides = map => setSurvey(p => ({ ...p, lite_overrides: map }));
+
+  // Checklist merged with custom gaps and overriding logic
   const checklist = useMemo(() => {
     const customItems = customGaps.map(c => ({
       id: c.id, clause: c.clause, title: c.title, isCustom: true
     }));
-    return [...DEFAULT_CHECKLIST, ...customItems];
-  }, [customGaps]);
+    const standardItems = DEFAULT_CHECKLIST.filter(c => !liteOverrides[c.id]?.deleted).map(c => {
+      if (liteOverrides[c.id]?.title) {
+        return { ...c, title: liteOverrides[c.id].title, isEdited: true };
+      }
+      return c;
+    });
+    return [...standardItems, ...customItems];
+  }, [customGaps, liteOverrides]);
 
   const resp = survey.responses || {};
   // For custom gaps, their score and note can also reside in responses matching their id
@@ -134,31 +143,46 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
     setGapModal({ open: true, index: null });
   };
   const openGapEdit = (id) => {
-    const idx = customGaps.findIndex(g => g.id === id);
-    if (idx === -1) return;
-    const r = customGaps[idx];
+    const isCustom = id.startsWith("CUS-");
+    let r;
+    if (isCustom) {
+      r = customGaps.find(g => g.id === id);
+    } else {
+      const orig = DEFAULT_CHECKLIST.find(c => c.id === id);
+      r = { clause: orig?.clause?.split('.')[0] || "4", title: liteOverrides[id]?.title || orig?.title || "" };
+    }
+    if (!r) return;
     const s = resp[id]?.score || 0;
     const n = resp[id]?.note || "";
     setGapForm({ id, clause: r.clause, title: r.title, score: s, note: n });
-    setGapModal({ open: true, index: idx });
+    setGapModal({ open: true, index: id });
   };
   const saveGap = () => {
     if (!gapForm.title?.trim()) return;
-    const next = [...customGaps];
-    if (gapModal.index === null) {
-      next.push({ id: gapForm.id, clause: gapForm.clause, title: gapForm.title });
+    const isCustom = gapForm.id.startsWith("CUS-");
+    if (isCustom) {
+      const next = [...customGaps];
+      const idx = next.findIndex(g => g.id === gapForm.id);
+      if (idx === -1) {
+        next.push({ id: gapForm.id, clause: gapForm.clause, title: gapForm.title });
+      } else {
+        next[idx] = { id: gapForm.id, clause: gapForm.clause, title: gapForm.title };
+      }
+      setCustomGaps(next);
     } else {
-      next[gapModal.index] = { id: gapForm.id, clause: gapForm.clause, title: gapForm.title };
+      setLiteOverrides({ ...liteOverrides, [gapForm.id]: { ...liteOverrides[gapForm.id], title: gapForm.title } });
     }
-    setCustomGaps(next);
     setResp(gapForm.id, "score", gapForm.score);
     setResp(gapForm.id, "note", gapForm.note);
     setGapModal({ open: false, index: null });
   };
   const removeGap = (id) => {
     if (confirm("Xóa phát hiện GAP này?")) {
-      setCustomGaps(customGaps.filter(g => g.id !== id));
-      // Optionally clean up responses[id] here, but it's harmless to leave it
+      if (id.startsWith("CUS-")) {
+        setCustomGaps(customGaps.filter(g => g.id !== id));
+      } else {
+        setLiteOverrides({ ...liteOverrides, [id]: { ...liteOverrides[id], deleted: true } });
+      }
     }
   };
 
@@ -441,12 +465,10 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
                             <tr key={item.id} style={{ background: idx % 2 ? C.bg2 : "transparent" }}>
                               <td style={{ padding: "6px 10px", borderBottom: `1px solid ${C.bd2}`, fontFamily: "'Fira Code',monospace" }}>
                                 <div style={{ color: item.isCustom ? C.violet : C.blueL, fontSize: 12, fontWeight: item.isCustom ? 700 : 400 }}>{item.isCustom ? "CUSTOM" : item.id}</div>
-                                {item.isCustom && (
-                                  <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-                                    <button onClick={() => openGapEdit(item.id)} style={{ border: "none", background: "none", color: C.t1, cursor: "pointer", fontSize: 11, padding: 0 }}>Sửa</button>
-                                    <button onClick={() => removeGap(item.id)} style={{ border: "none", background: "none", color: C.red, cursor: "pointer", fontSize: 11, padding: 0 }}>Xóa</button>
-                                  </div>
-                                )}
+                                <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+                                  <button onClick={() => openGapEdit(item.id)} style={{ border: "none", background: "none", color: C.t1, cursor: "pointer", fontSize: 11, padding: 0 }}>Sửa</button>
+                                  <button onClick={() => removeGap(item.id)} style={{ border: "none", background: "none", color: C.red, cursor: "pointer", fontSize: 11, padding: 0 }}>Xóa</button>
+                                </div>
                               </td>
                               <td style={{ padding: "6px 10px", borderBottom: `1px solid ${C.bd2}`, color: C.t0, lineHeight: 1.4 }}>
                                 <div style={{ fontWeight: item.isCustom ? 600 : 400, color: item.isCustom ? C.violetL : C.t0 }}>{item.title}</div>
@@ -585,8 +607,8 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
 
       <Modal open={gapModal.open} onClose={() => setGapModal({ open: false, index: null })} title={gapModal.index === null ? "Thêm phát hiện GAP" : "Sửa phát hiện GAP"}>
         <Grid cols={1} gap={12}>
-          <Field label="Điều khoản ISO (4-10)">
-            <Sel value={gapForm.clause} onChange={v => setGapForm(f => ({...f, clause: v}))} options={CLAUSE_KEYS.map(k => [k, "Điều khoản " + k + " - " + CLAUSE_NAMES[k]])} />
+          <Field label="Điều khoản ISO (4-10) (Chỉ sửa được khi Thêm mới)">
+            <Sel value={gapForm.clause} onChange={v => setGapForm(f => ({...f, clause: v}))} options={CLAUSE_KEYS.map(k => [k, "Điều khoản " + k + " - " + CLAUSE_NAMES[k]])} disabled={gapForm.id && !gapForm.id.startsWith("CUS-")} />
           </Field>
           <Field label="Nội dung phát hiện *">
             <TA value={gapForm.title} onChange={v => setGapForm(f => ({ ...f, title: v }))} rows={3} />
