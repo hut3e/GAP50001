@@ -27,6 +27,7 @@ const AdminDashboard  = lazy(() => import("./AdminDashboard.jsx"));
 const KanbanDashboard = lazy(() => import("./KanbanDashboard.jsx"));
 const LoginPage       = lazy(() => import("./LoginPage.jsx"));
 const UserManagement  = lazy(() => import("./UserManagement.jsx"));
+const LiteGapAudit    = lazy(() => import("./LiteGapAudit.jsx"));
 
 // ── Completion checks per step ───────────────────────────────────
 function stepDone(step, survey, checklist = DEFAULT_CHECKLIST) {
@@ -148,7 +149,7 @@ function LogoSlot({ value, onChange, title }) {
 }
 
 // ── Top bar ──────────────────────────────────────────────────────
-function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggleAdmin, onToggleKanban, checklist = DEFAULT_CHECKLIST, currentUser, onLogout }) {
+function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggleAdmin, onToggleKanban, onToggleLite, checklist = DEFAULT_CHECKLIST, currentUser, onLogout }) {
   const r = survey.responses || {};
   const crit = checklist.filter(i=>(r[i.id]?.score||0)===1).length;
   const maj  = checklist.filter(i=>(r[i.id]?.score||0)===2).length;
@@ -214,6 +215,17 @@ function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggl
           </>
         )}
         <LogoSlot value={meta.logo_right_url} onChange={v => setMeta("logo_right_url", v)} title="Logo phải" />
+        {onToggleLite && !adminMode && (
+          <button onClick={onToggleLite} style={{
+            padding: "6px 14px", borderRadius: 8, border: `1px solid ${C.orange}50`,
+            background: `linear-gradient(135deg, ${C.orange}18, ${C.amber}10)`,
+            color: C.orangeL, fontSize: 13, fontWeight: 700, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 6, transition: "all .2s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = `linear-gradient(135deg, ${C.orange}30, ${C.amber}20)`; e.currentTarget.style.transform = "scale(1.03)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = `linear-gradient(135deg, ${C.orange}18, ${C.amber}10)`; e.currentTarget.style.transform = ""; }}
+          >⚡ Lite Audit</button>
+        )}
         <Btn v="ghost" sz="sm" onClick={onToggleKanban}>
           {kanbanMode ? "← Về khảo sát" : "📊 Kanban / Lịch"}
         </Btn>
@@ -453,6 +465,7 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
   const autoSaveTimerRef = useRef(null);
   const lastSavedRef = useRef(null);
   const [userManagementMode, setUserManagementMode] = useState(false);
+  const [liteAuditOpen, setLiteAuditOpen] = useState(false);
 
   // ── Auth state ──
   const [authToken, setAuthToken] = useState(() => localStorage.getItem("gap_token") || null);
@@ -920,6 +933,7 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
           checklist={checklist}
           currentUser={currentUser}
           onLogout={handleLogout}
+          onToggleLite={() => setLiteAuditOpen(true)}
           onToggleKanban={() => setKanbanMode(true)}
           onToggleAdmin={() => {
             setAdminInitialTab("surveys");
@@ -997,6 +1011,21 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
             <BottomNav step={step} setStep={setStep} total={STEPS.length}/>
           </div>
         </div>
+
+        {/* Lite GAP Audit Modal */}
+        {liteAuditOpen && (
+          <Suspense fallback={<div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", color: C.t0, fontSize: 16 }}>Đang tải Lite Audit...</div>}>
+            <LiteGapAudit
+              open={liteAuditOpen}
+              onClose={() => setLiteAuditOpen(false)}
+              survey={survey}
+              setSurvey={setSurvey}
+              apiUrl={apiUrl}
+              onSave={handleSave}
+              setToast={setToast}
+            />
+          </Suspense>
+        )}
       </div>
     </>
   );
