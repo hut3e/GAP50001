@@ -895,17 +895,32 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
             adminMode={false} kanbanMode={false}
             onToggleAdmin={() => { setUserManagementMode(false); setAdminMode(true); }}
             onToggleKanban={() => { setUserManagementMode(false); setKanbanMode(true); }}
+            onToggleLite={() => setLiteAuditOpen(true)}
             checklist={checklist}
             currentUser={currentUser} onLogout={handleLogout}
             isMobile={isMobile} setSidebarOpen={setSidebarOpen}
           />
           <div style={{ padding: isMobile ? "16px 12px 24px" : "24px 32px 32px" }}>
+            <Toast toast={toast} onClose={() => setToast(null)}/>
             <SectionHeader icon="👥" title="Quản trị người dùng" badge="CRUD · Dashboard · Bảo mật" />
             <Suspense fallback={<div style={{ color: C.t2, fontSize: 15 }}>Đang tải…</div>}>
               <UserManagement apiUrl={apiUrl} token={authToken} currentUser={currentUser} />
             </Suspense>
           </div>
         </div>
+        {liteAuditOpen && (
+          <Suspense fallback={<div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", color: C.t0, fontSize: 16 }}>Đang tải Lite Audit...</div>}>
+            <LiteGapAudit
+              open={liteAuditOpen}
+              onClose={() => setLiteAuditOpen(false)}
+              survey={survey}
+              setSurvey={setSurvey}
+              apiUrl={apiUrl}
+              onSave={handleSave}
+              setToast={setToast}
+            />
+          </Suspense>
+        )}
       </>
     );
   }
@@ -921,16 +936,32 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
             adminMode={false} kanbanMode={true}
             onToggleAdmin={() => { setKanbanMode(false); setAdminMode(true); }}
             onToggleKanban={() => setKanbanMode(false)}
+            onToggleLite={() => setLiteAuditOpen(true)}
             checklist={checklist}
+            currentUser={currentUser} onLogout={handleLogout}
             isMobile={isMobile} setSidebarOpen={setSidebarOpen}
           />
           <div style={{ padding: isMobile ? "16px 12px 24px" : "24px 32px 32px" }}>
+            <Toast toast={toast} onClose={() => setToast(null)}/>
             <SectionHeader icon="📊" title="Kanban & Lịch đánh giá GAP" badge="Kanban · Lịch · Thống kê · Telegram" />
             <Suspense fallback={<div style={{ color: C.t2, fontSize: 15 }}>Đang tải Kanban dashboard…</div>}>
               <KanbanDashboard apiUrl={apiUrl} initialTab={kanbanInitialTab} currentUser={currentUser} />
             </Suspense>
           </div>
         </div>
+        {liteAuditOpen && (
+          <Suspense fallback={<div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", color: C.t0, fontSize: 16 }}>Đang tải Lite Audit...</div>}>
+            <LiteGapAudit
+              open={liteAuditOpen}
+              onClose={() => setLiteAuditOpen(false)}
+              survey={survey}
+              setSurvey={setSurvey}
+              apiUrl={apiUrl}
+              onSave={handleSave}
+              setToast={setToast}
+            />
+          </Suspense>
+        )}
       </>
     );
   }
@@ -946,16 +977,32 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
             adminMode={true} kanbanMode={false}
             onToggleAdmin={() => setAdminMode(false)}
             onToggleKanban={() => { setAdminMode(false); setKanbanMode(true); }}
+            onToggleLite={() => setLiteAuditOpen(true)}
             checklist={checklist}
+            currentUser={currentUser} onLogout={handleLogout}
             isMobile={isMobile} setSidebarOpen={setSidebarOpen}
           />
           <div style={{ padding: isMobile ? "16px 12px 24px" : "24px 40px 32px" }}>
+            <Toast toast={toast} onClose={() => setToast(null)}/>
             <SectionHeader icon="👑" title="Admin dashboard" badge="Khách hàng · Kế hoạch · Logistics" />
             <Suspense fallback={<div style={{ color: C.t2, fontSize: 15 }}>Đang tải Admin dashboard…</div>}>
               <AdminDashboard apiUrl={apiUrl} initialTab={adminInitialTab} />
             </Suspense>
           </div>
         </div>
+        {liteAuditOpen && (
+          <Suspense fallback={<div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", color: C.t0, fontSize: 16 }}>Đang tải Lite Audit...</div>}>
+            <LiteGapAudit
+              open={liteAuditOpen}
+              onClose={() => setLiteAuditOpen(false)}
+              survey={survey}
+              setSurvey={setSurvey}
+              apiUrl={apiUrl}
+              onSave={handleSave}
+              setToast={setToast}
+            />
+          </Suspense>
+        )}
       </>
     );
   }
