@@ -447,8 +447,14 @@ export default function StepEvidence({ survey, surveyId, apiUrl, setToast, ensur
     [sid, ab, toast, fetchList]
   );
 
-  const viewUrl = (id) => `${ab}/api/surveys/${sid}/evidence/${id}`;
-  const downloadUrl = (id) => `${ab}/api/surveys/${sid}/evidence/${id}?download=1`;
+  const viewUrl = (id) => {
+    const t = localStorage.getItem("token");
+    return `${ab}/api/surveys/${sid}/evidence/${id}${t ? `?token=${t}` : ""}`;
+  };
+  const downloadUrl = (id) => {
+    const t = localStorage.getItem("token");
+    return `${ab}/api/surveys/${sid}/evidence/${id}?download=1${t ? `&token=${t}` : ""}`;
+  };
 
   const sockBadge = {
     idle: { color: C.t3, dot: "○", label: "Socket.IO chưa kết nối (dùng polling)" },

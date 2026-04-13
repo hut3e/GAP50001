@@ -13,6 +13,8 @@ const { Server } = require("socket.io");
 const fs = require("fs");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const mongoSanitize = require("express-mongo-sanitize");
+const jwt = require("jsonwebtoken");
 
 /** Lấy địa chỉ IP LAN (IPv4) của máy chủ để điện thoại cùng mạng có thể truy cập */
 function getLocalNetworkIP() {
@@ -77,12 +79,22 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-app.use(cors({ origin: "*" }));
+app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ["https://103.81.84.233:8888", "http://103.81.84.233:8888", "http://localhost:8888", "http://localhost:3000", "http://localhost:5173"] }));
 app.use(express.json({ limit: "20mb" }));
+app.use(mongoSanitize());
 
-// Bảo vệ thư mục uploads — yêu cầu auth hoặc chỉ cho phép file hợp lệ
+// Bảo vệ thư mục uploads — JWT bảo vệ tải trực tiếp
 app.use("/uploads", (req, res, next) => {
-  // Chỉ cho phép truy cập file có đuôi ảnh/document
+  const token = req.query.token || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
+  if (!token) return res.status(401).json({ error: "Access denied. Token missing.", code: "AUTH_REQUIRED" });
+  try {
+    const { JWT_SECRET } = require("./middleware/auth");
+    jwt.verify(token, JWT_SECRET);
+  } catch(err) {
+    return res.status(401).json({ error: "Invalid or expired token.", code: "INVALID_TOKEN" });
+  }
+
+  // File extension checks...
   const ext = path.extname(req.path).toLowerCase();
   const allowed = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".doc", ".docx", ".xls", ".xlsx"];
   if (!allowed.includes(ext)) return res.status(403).json({ error: "Truy cập không được phép." });
@@ -95,9 +107,17 @@ app.use("/uploads", (req, res, next) => {
 app.use("/api/auth/login", loginLimiter);
 app.use("/api/auth", apiLimiter, authRoutes);
 
-// API routes — bảo vệ bằng auth (optional cho backward compatibility)
-app.use("/api/surveys", authOptional, surveyRoutes);
-app.use("/api/surveys/:surveyId/evidence", authOptional, evidenceRoutes);
+// API routes
+// Chặn truy cập GET không có JWT nhưng vẫn cho phép Mobile POST qua authOptional
+app.use("/api/surveys", (req, res, next) => {
+  if (req.method === "GET") return authRequired(req, res, next);
+  authOptional(req, res, next);
+}, surveyRoutes);
+
+app.use("/api/surveys/:surveyId/evidence", (req, res, next) => {
+  if (req.method === "GET") return authRequired(req, res, next);
+  authOptional(req, res, next);
+}, evidenceRoutes);
 app.use("/api/iso50001/gap", authOptional, gapRoutes);
 app.use("/api/iso50001/gap/checklist", authOptional, checklistRoutes);
 app.use("/api/iso50001/gap/dropdowns", authOptional, dropdownRoutes);

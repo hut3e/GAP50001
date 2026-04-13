@@ -185,7 +185,10 @@ export default function EvidenceClauseModal({ open, onClose, onEvidenceChange, s
     [surveyId, apiBase, setToast, fetchList, onEvidenceChange]
   );
 
-  const viewUrl = (id) => `${apiBase}/api/surveys/${surveyId}/evidence/${id}`;
+  const viewUrl = (id) => {
+    const t = localStorage.getItem("token");
+    return `${apiBase}/api/surveys/${surveyId}/evidence/${id}${t ? `?token=${t}` : ""}`;
+  };
   /** URL cho QR: ưu tiên ref (gán ngay khi mở modal), rồi state, rồi prop. Trỏ trực tiếp tới frontend. */
   const mobileCaptureUrl = () => {
     const sid = (qrSurveyIdRef.current != null && String(qrSurveyIdRef.current).trim())

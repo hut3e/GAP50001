@@ -18,7 +18,7 @@ function signToken(user) {
 /** Middleware: Verify JWT — gắn req.user nếu hợp lệ */
 function authRequired(req, res, next) {
   const header = req.headers.authorization || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  const token = header.startsWith("Bearer ") ? header.slice(7) : (req.query.token || null);
   if (!token) return res.status(401).json({ error: "Chưa đăng nhập. Vui lòng đăng nhập.", code: "AUTH_REQUIRED" });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -47,7 +47,7 @@ function auditorRequired(req, res, next) {
 /** Middleware: Optional auth — gắn req.user nếu có token, không block nếu không có */
 function authOptional(req, res, next) {
   const header = req.headers.authorization || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  const token = header.startsWith("Bearer ") ? header.slice(7) : (req.query.token || null);
   if (token) {
     try {
       req.user = jwt.verify(token, JWT_SECRET);
