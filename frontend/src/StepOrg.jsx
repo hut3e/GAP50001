@@ -412,7 +412,7 @@ function ContactPersonsSection({ client, setClient, C, Field, Input, Btn, Grid, 
   return (
     <>
       <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.bd1}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontSize: FONT.body, fontWeight: 700, color: C.skyL }}>2. Người liên hệ</div>
           <Btn v="outline" sz="sm" onClick={openAdd}>＋ Thêm</Btn>
         </div>
@@ -519,7 +519,7 @@ function EnergyDetailsSection({ client, setClient, C, Field, Input, Btn, Sel, Mo
   return (
     <>
       <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.bd1}`, gridColumn: "1/-1" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontSize: FONT.body, fontWeight: 700, color: C.skyL }}>Các loại năng lượng sử dụng (Chi tiết - Quy đổi TOE)</div>
           <Btn v="outline" sz="sm" onClick={openAdd}>＋ Thêm nguồn NL</Btn>
         </div>
@@ -987,7 +987,7 @@ export default function StepOrg({ survey, setSurvey }) {
         <div style={{ fontSize: 14, color: C.t1, marginBottom: 12 }}>
           Quản lý các văn bản pháp lý Việt Nam áp dụng cho cơ sở. Thêm, sửa, xóa và cập nhật trạng thái tuân thủ.
         </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {(() => {
               const items = survey.legal_framework || [];
@@ -1119,7 +1119,7 @@ export default function StepOrg({ survey, setSurvey }) {
         <div style={{ marginBottom: 14, fontSize: FONT.body, color: C.t1 }}>Quản lý bảng A.1 (Pháp luật VN) và A.2 (ISO 500xx). Dữ liệu lưu vào phiên khảo sát và xuất ra báo cáo DOCX.</div>
 
         <div style={{ marginBottom: 18 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 8 }}>
             <strong style={{ color: C.t0, fontSize: FONT.body }}>1. Pháp luật Việt Nam – Mức độ tuân thủ</strong>
             <Btn v="outline" sz="sm" onClick={openLegalAdd}>＋ Thêm văn bản</Btn>
           </div>
@@ -1161,7 +1161,7 @@ export default function StepOrg({ survey, setSurvey }) {
         </div>
 
         <div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 8 }}>
             <strong style={{ color: C.t0, fontSize: FONT.body }}>2. Họ tiêu chuẩn ISO 500xx áp dụng</strong>
             <Btn v="outline" sz="sm" onClick={openIsoAdd}>＋ Thêm tiêu chuẩn</Btn>
           </div>

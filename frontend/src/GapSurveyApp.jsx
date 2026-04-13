@@ -86,7 +86,7 @@ function QuickStats({ survey, checklist = DEFAULT_CHECKLIST }) {
         { l: "Actions", v: (survey.action_plan || []).length, c: C.tealL },
         { l: "Hiện trường", v: (survey.site_assessments || []).length, c: C.skyL },
       ].map(x => (
-        <div key={x.l} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+        <div key={x.l} style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 6 }}>
           <span style={{ fontSize: FONT.body, color: C.t2 }}>{x.l}</span>
           <span style={{ fontSize: FONT.body, fontWeight: 700, color: x.c }}>{x.u}{x.v}</span>
         </div>
@@ -157,11 +157,11 @@ function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggl
   const setMeta = (key, val) => setSurvey(prev => ({ ...prev, meta: { ...prev.meta, [key]: val } }));
   return (
     <div style={{
-      height: 56,
+      minHeight: 56,
       padding: "0 16px 0 20px",
       display: "flex",
       alignItems: "center",
-      justifyContent: "space-between",
+      justifyContent: "space-between", flexWrap: "wrap", gap: 10,
       borderBottom: `1px solid ${C.bd0}`,
       background: `linear-gradient(90deg,${C.bg1},${C.bg2})`,
       position: "sticky",
@@ -418,7 +418,7 @@ function BottomNav({ step, setStep, total, isMobile }) {
   return (
     <div style={{
       display: "flex",
-      justifyContent: "space-between",
+      justifyContent: "space-between", flexWrap: "wrap", gap: 10,
       alignItems: "center",
       marginTop: 24,
       paddingTop: 16,

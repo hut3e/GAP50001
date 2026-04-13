@@ -152,7 +152,7 @@ function SurveyCard({ survey, onDragStart, onStatusChange, onSendTelegram, onOpe
       title="Kéo để chuyển cột"
     >
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "flex-start", marginBottom: 6 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: FONT.body, fontWeight: 700, color: C.t0, lineHeight: 1.3, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {client.name || "—"}
@@ -412,7 +412,7 @@ function CalendarView({ surveys, jobs = [], onOpenDetail, onAddJob, onEditJob })
                 transition: "background .15s",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 3 }}>
                 <span style={{ fontSize: FONT.label, fontWeight: isToday ? 800 : 500, color: isToday ? C.blueL : C.t1 }}>
                   {day}
                 </span>
@@ -1238,7 +1238,7 @@ function SurveyDetailModal({ survey, onClose, onStatusChange, onSendTelegram }) 
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
       <div style={{ background: C.bg1, border: `1px solid ${C.bd0}`, borderRadius: RADIUS.xl, maxWidth: 560, width: "100%", maxHeight: "90vh", overflowY: "auto", padding: 24 }} onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "flex-start", marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: FONT.headline, fontWeight: 800, color: C.t0 }}>{client.name || "—"}</div>
             <div style={{ fontSize: FONT.body, color: C.t2, fontFamily: "'Fira Code',monospace" }}>{meta.ref_no}</div>
@@ -1421,7 +1421,7 @@ function JobModal({ job, dateKey, onClose, onSave, onDelete, apiUrl, onSendTeleg
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.75)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(6px)" }} onClick={onClose}>
       <div style={{ background: C.bg1, borderRadius: RADIUS.xl, width: "100%", maxWidth: 640, maxHeight: "90vh", overflowY: "auto", border: `1px solid ${C.bd0}`, boxShadow: "0 24px 48px rgba(0,0,0,0.4)" }} onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.bd1}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: C.bg1, zIndex: 10 }}>
+        <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.bd1}`, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", position: "sticky", top: 0, background: C.bg1, zIndex: 10 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: FONT.title, color: C.t0 }}>{job ? "Sửa cấu hình Công Việc / Nhiệm Vụ" : "Tạo Công Việc Bổ Sung"}</h2>
             <div style={{ fontSize: FONT.caption, color: C.t2, marginTop: 4 }}>Cấu hình nhiệm vụ hiện trường, công cụ & cảnh báo Telegram tự động</div>
@@ -1499,7 +1499,7 @@ function JobModal({ job, dateKey, onClose, onSave, onDelete, apiUrl, onSendTeleg
 
           {/* Telegram Settings Inline */}
           <div style={{ background: C.bg2, borderRadius: RADIUS.lg, border: `1px solid ${C.teal}44`, overflow: "hidden" }}>
-             <div onClick={() => setShowTg(!showTg)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding: "12px 16px", cursor:"pointer", background: showTg ? C.teal+"11" : "transparent" }}>
+             <div onClick={() => setShowTg(!showTg)} style={{ display:"flex", justifyContent:"space-between", flexWrap: "wrap", gap: 10, alignItems:"center", padding: "12px 16px", cursor:"pointer", background: showTg ? C.teal+"11" : "transparent" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <span style={{fontSize:20}}>🤖</span>
                   <span style={{ fontSize: FONT.body, fontWeight: 700, color: C.tealL }}>Cấu hình gửi Telegram tự động</span>
@@ -1532,7 +1532,7 @@ function JobModal({ job, dateKey, onClose, onSave, onDelete, apiUrl, onSendTeleg
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.bd1}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg2, borderBottomLeftRadius: RADIUS.xl, borderBottomRightRadius: RADIUS.xl }}>
+        <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.bd1}`, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", background: C.bg2, borderBottomLeftRadius: RADIUS.xl, borderBottomRightRadius: RADIUS.xl }}>
           <div style={{ display: "flex", gap: 12 }}>
             {job ? (
               <Btn v="outline" sz="md" onClick={() => onDelete(job._id)} style={{ color: C.red, borderColor: C.redL }}>🗑 Xoá Job</Btn>

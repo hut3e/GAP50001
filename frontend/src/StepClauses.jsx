@@ -469,7 +469,7 @@ export default function StepClauses({ survey, setSurvey, surveyId, apiUrl, setTo
             </p>
           </div>
           <div style={{ padding: SPACE.lg }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: SPACE.md }}>
+            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: SPACE.md }}>
               <span style={{ fontSize: FONT.body, color: C.t1, fontWeight: 600 }}>Danh sách biến liên quan ({relatedVars.length})</span>
               <Btn v="blue" sz="sm" onClick={() => setRelatedVars([...relatedVars, { ...EMPTY_RELATED }])}>＋ Thêm biến liên quan</Btn>
             </div>

@@ -220,7 +220,7 @@ export default function StepExport({ survey, surveyId, onExport, onSave, loading
 
         {/* Readiness Checklist */}
         <div style={{ background: C.bg2, borderRadius: 20, padding: 32, border: `1px solid ${C.bd0}`, boxShadow: `0 10px 30px rgba(0,0,0,0.1)`, display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 24 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: C.t0, display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 8, height: 24, background: validPct === 100 ? C.teal : C.amber, borderRadius: 4 }}/> Điều kiện Xuất báo cáo
             </div>
@@ -385,7 +385,7 @@ function ExportPlatformCard({ icon, title, subtitle, desc, features, color, glow
       {/* Background ambient glow */}
       <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: 100, background: `linear-gradient(180deg, ${glow}10, transparent)`, pointerEvents: "none" }} />
       
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, zIndex: 1 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 20, zIndex: 1 }}>
         <div style={{ width: 56, height: 56, borderRadius: 16, background: `${color}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, border: `1px solid ${color}30` }}>
           {icon}
         </div>

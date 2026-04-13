@@ -159,7 +159,7 @@ export default function RoadmapGantt({ roadmapRows, setRoadmapRows, meta = {}, s
   return (
     <div style={{ padding: 0 }}>
       {/* Action Bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <span style={{ fontSize: FONT.label, color: C.t2, fontWeight: 600 }}>Thời gian tuỳ chỉnh hiển thị:</span>
           <div>

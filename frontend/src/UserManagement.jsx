@@ -295,7 +295,7 @@ export default function UserManagement({ apiUrl, token, currentUser }) {
                 const pct = stats.totalUsers ? Math.round((count / stats.totalUsers) * 100) : 0;
                 return (
                   <div key={role} style={{ marginBottom: 20 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 6 }}>
                       <span style={{ fontSize: 14, color: C.t1, fontWeight: 600 }}>{r.icon} {r.label}</span>
                       <span style={{ fontSize: 14, fontWeight: 700, color: r.color }}>{count} ({pct}%)</span>
                     </div>
@@ -349,7 +349,7 @@ export default function UserManagement({ apiUrl, token, currentUser }) {
       {tab === "users" && (
         <div style={{ animation: "fadeIn 0.4s ease" }}>
           {/* Toolbar */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 20 }}>
             <div style={{ fontSize: 14, color: C.t2 }}>Tổng: <strong style={{ color: C.t0 }}>{users.length}</strong> tài khoản</div>
             <Btn v="blue" sz="md" onClick={() => setShowForm("new")}>➕ Tạo tài khoản mới</Btn>
           </div>

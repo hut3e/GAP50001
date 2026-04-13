@@ -9,6 +9,10 @@ import "flatpickr/dist/themes/dark.css";
 import { C, SCORE_CFG, FONT, SPACE, RADIUS } from "./gap.ui.constants.js";
 
 export const GLOBAL_CSS = `
+@media (max-width: 768px) {
+  .gap-grid-responsive { grid-template-columns: 1fr !important; }
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:16px;scroll-behavior:smooth}
@@ -150,7 +154,7 @@ export const Sel = ({ value, onChange, options=[], disabled, placeholder="Chọn
     <div ref={ref} style={{ position: "relative" }}>
       <div 
         onClick={() => !disabled && setOpen(!open)}
-        style={{ ...BASE_INPUT, cursor: disabled ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", userSelect: "none" }}
+        style={{ ...BASE_INPUT, cursor: disabled ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, userSelect: "none" }}
       >
         <span style={{ color: value ? C.t0 : C.t2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedLabel}</span>
         <span style={{ color: C.t2, fontSize: 10 }}>▼</span>
@@ -216,9 +220,9 @@ export const Field = ({ label, required, children, sx={} }) => (
   </div>
 );
 export const Grid = ({ cols, gap=SPACE.lg, minCol="260px", children }) => (
-  <div style={{
+  <div className="gap-grid-responsive" style={{
     display: "grid",
-    gridTemplateColumns: cols ? `repeat(auto-fit, minmax(min(100%, max(${minCol}, calc(100% / ${cols} - ${gap}px))), 1fr))` : `repeat(auto-fill, minmax(min(100%, ${minCol}), 1fr))`,
+    gridTemplateColumns: cols ? `repeat(${cols}, minmax(0, 1fr))` : `repeat(auto-fill, minmax(${minCol}, 1fr))`,
     gap,
   }}>{children}</div>
 );
@@ -401,7 +405,7 @@ export const Modal = ({ open, onClose, title, children, width = 560 }) => {
         <div style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
+          justifyContent: "space-between", flexWrap: "wrap", gap: 10,
           padding: `${SPACE.lg}px ${SPACE.xl}px`,
           borderBottom: `2px solid ${C.bd0}`,
           background: C.bg3,

@@ -284,7 +284,7 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
       display: "flex", flexDirection: "column",
     }}>
       <div style={{
-        minHeight: 56, padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
+        minHeight: 56, padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, flexWrap: "wrap", gap: 12,
         background: `linear-gradient(135deg, ${C.bg1}, ${C.bg2})`, borderBottom: `1px solid ${C.bd0}`,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -339,7 +339,7 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
 
               {/* CRUD Người liên hệ */}
               <div style={{ marginTop: 24 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.t1, textTransform: "uppercase" }}>Danh sách người liên hệ</div>
                   <Btn v="outline" sz="sm" onClick={openContactAdd}>＋ Thêm Liên hệ</Btn>
                 </div>
@@ -408,7 +408,7 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
         {/* Tab: Đánh giá GAP nhanh */}
         {tab === "check" && (
           <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-            <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: C.t0 }}>
                 📋 Đánh giá hồ sơ tài liệu — ISO 50001:2018
               </div>
@@ -432,7 +432,7 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
                 <div key={clause} style={{ marginBottom: 8, borderRadius: 10, overflow: "hidden", border: `1px solid ${C.bd0}` }}>
                   <button onClick={() => setExpandedClauses(p => ({ ...p, [clause]: !expanded }))} style={{
                     width: "100%", padding: "12px 16px", background: C.bg3, border: "none", cursor: "pointer",
-                    display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between", flexWrap: "wrap",
+                    display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between", flexWrap: "wrap", flexWrap: "wrap",
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{ fontSize: 18, color: C.blueL, fontWeight: 700, fontFamily: "'Fira Code',monospace" }}>§{clause}</span>
@@ -511,7 +511,7 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
         {/* Tab: Hiện trường */}
         {tab === "site" && (
           <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-            <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: C.t0 }}>
                 🏗️ Đánh giá Khu vực / Nhà máy / Thiết bị
               </div>
@@ -530,7 +530,7 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
                     background: C.bg2, borderRadius: 12, border: `1px solid ${C.bd0}`, overflow: "hidden",
                     transition: "transform .2s, box-shadow .2s",
                   }}>
-                    <div style={{ padding: "12px 16px", background: C.bg3, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ padding: "12px 16px", background: C.bg3, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                       <div>
                         <div style={{ fontSize: 15, fontWeight: 700, color: C.t0 }}>{item.area}</div>
                         <Tag c={C.blue}>{item.area_type}</Tag>

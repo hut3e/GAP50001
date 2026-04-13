@@ -54,7 +54,7 @@ export default function StepMeters({ survey, setSurvey }) {
 
   return (
     <div className="fade-in">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: SPACE.lg }}>
+      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: SPACE.lg }}>
         <div style={{ fontSize: FONT.title, color: C.t0, fontWeight: 600 }}>Cấu trúc thiết bị đo lường ({meters.length})</div>
         <Btn v="blue" sz="sm" onClick={() => handleOpen()} sx={{ boxShadow: `0 4px 12px ${C.blue}40` }}>
           + Thêm Đồng hồ

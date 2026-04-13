@@ -556,7 +556,7 @@ export default function AdminDashboard({ apiUrl, initialTab = "surveys" }) {
             <Sel value={transportFilter} onChange={setTransportFilter} options={TRANSPORT_FILTERS} />
           </Field>
         </Grid>
-        <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <span style={{ fontSize: 13, color: C.t2 }}>
             {renderFilterSummary()}
           </span>
@@ -1085,7 +1085,7 @@ export default function AdminDashboard({ apiUrl, initialTab = "surveys" }) {
 
       {tab === "checklist" && (
         <Card title="Quản trị điều khoản GAP (CRUD)" icon="📝" accent={C.violet}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", flexWrap: "wrap", gap: 10, alignItems:"center", marginBottom:12, flexWrap: "wrap", gap: 10 }}>
             <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap: "wrap" }}>
               <Input value={clFilter} onChange={setClFilter} placeholder="Lọc theo id, clause, tiêu đề..." />
               <Btn v="outline" sz="sm" onClick={loadChecklist} disabled={clLoading}>🔄 Tải lại</Btn>
@@ -1224,7 +1224,7 @@ export default function AdminDashboard({ apiUrl, initialTab = "surveys" }) {
             ))}
           </div>
 
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", flexWrap: "wrap", gap: 10, alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:10 }}>
             <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
               <Input value={ddFilter} onChange={setDdFilter} placeholder="Lọc theo id, tên..." />
               <Btn v="outline" sz="sm" onClick={() => loadDropdowns()} disabled={ddLoading}>🔄 Tải lại</Btn>

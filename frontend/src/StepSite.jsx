@@ -257,7 +257,7 @@ export default function StepSite({ survey, setSurvey }) {
 
                 {/* Equipment list */}
                 <div>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap: "wrap", gap: 10, marginBottom:12 }}>
                     <span style={{ fontSize:16, fontWeight:700, color:C.t0, fontFamily: "'Rajdhani',sans-serif" }}>
                       ⚙️ Danh sách Thiết bị ({(zone.equipment||[]).length})
                     </span>
@@ -270,7 +270,7 @@ export default function StepSite({ survey, setSurvey }) {
                       const eqsc  = eq.gap_score || 0;
                       return (
                         <div key={eq.id} style={{ background:C.bg3, borderRadius:8, padding:12, border:`1px solid ${eqcol}40`, borderLeft: `4px solid ${eqcol}aa`, display: "flex", flexDirection: "column", gap: 8 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "flex-start" }}>
                             <div>
                                <div style={{ fontWeight: 700, color: C.t0, fontSize: 15 }}>{eq.name || `Thiết bị ${ei+1}`}</div>
                                <div style={{ fontSize: 13, color: C.t2 }}>{eq.type || "Loại thiết bị"} • {eq.capacity || "Công suất"}</div>
@@ -306,7 +306,7 @@ export default function StepSite({ survey, setSurvey }) {
 
       {/* Solar Panel */}
       <div style={{ background: C.bg2, borderRadius: 10, padding: 16, border: `1px solid ${C.bd0}30`, marginTop: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: C.t0, fontFamily: "'Rajdhani',sans-serif" }}>
             ☀️ Tổng Điện Mặt Trời (Solar)
           </div>
