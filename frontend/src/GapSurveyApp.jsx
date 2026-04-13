@@ -223,16 +223,16 @@ function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggl
           </>
         )}
         {!isMobile && <LogoSlot value={meta.logo_right_url} onChange={v => setMeta("logo_right_url", v)} title="Logo phải" />}
-        {onToggleLite && !adminMode && !isMobile && (
+        {onToggleLite && !adminMode && (
           <button onClick={onToggleLite} style={{
-            padding: "6px 14px", borderRadius: 8, border: `1px solid ${C.orange}50`,
+            padding: isMobile ? "6px 10px" : "6px 14px", borderRadius: 8, border: `1px solid ${C.orange}50`,
             background: `linear-gradient(135deg, ${C.orange}18, ${C.amber}10)`,
-            color: C.orangeL, fontSize: 13, fontWeight: 700, cursor: "pointer",
+            color: C.orangeL, fontSize: isMobile ? 18 : 13, fontWeight: 700, cursor: "pointer",
             display: "flex", alignItems: "center", gap: 6, transition: "all .2s",
           }}
           onMouseEnter={e => { e.currentTarget.style.background = `linear-gradient(135deg, ${C.orange}30, ${C.amber}20)`; e.currentTarget.style.transform = "scale(1.03)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = `linear-gradient(135deg, ${C.orange}18, ${C.amber}10)`; e.currentTarget.style.transform = ""; }}
-          >⚡ Audit</button>
+          >⚡ {!isMobile && "Audit"}</button>
         )}
         <Btn v="ghost" sz="sm" onClick={onToggleKanban}>
           {kanbanMode ? "← Về KS" : isMobile ? "📊" : "📊 Kanban"}

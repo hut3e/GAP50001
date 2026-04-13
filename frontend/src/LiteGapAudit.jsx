@@ -284,10 +284,10 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
       display: "flex", flexDirection: "column",
     }}>
       <div style={{
-        height: 56, padding: "0 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
+        minHeight: 56, padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
         background: `linear-gradient(135deg, ${C.bg1}, ${C.bg2})`, borderBottom: `1px solid ${C.bd0}`,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 24 }}>⚡</span>
           <span style={{
             fontFamily: "'Rajdhani',sans-serif", fontSize: 20, fontWeight: 700,
@@ -304,13 +304,13 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 0, background: C.bg2, borderBottom: `1px solid ${C.bd0}` }}>
+      <div style={{ display: "flex", gap: 0, background: C.bg2, borderBottom: `1px solid ${C.bd0}`, overflowX: "auto", whiteSpace: "nowrap" }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
-            flex: 1, padding: "12px 16px", background: tab === t.id ? `${C.blue}15` : "transparent",
+            flex: "1 0 auto", padding: "12px 16px", background: tab === t.id ? `${C.blue}15` : "transparent",
             borderBottom: tab === t.id ? `3px solid ${C.blue}` : "3px solid transparent",
             border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            color: tab === t.id ? C.blueL : C.t2, fontSize: 14, fontWeight: tab === t.id ? 700 : 500,
+            color: tab === t.id ? C.blueL : C.t2, fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
             transition: "all .2s",
           }}>
             <span style={{ fontSize: 18 }}>{t.icon}</span> {t.label}
@@ -346,8 +346,8 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
                 {contacts.length === 0 ? (
                   <div style={{ padding: 12, color: C.t3, background: C.bg3, borderRadius: 6, fontSize: 13 }}>Chưa có người liên hệ.</div>
                 ) : (
-                  <div style={{ border: `1px solid ${C.bd0}`, borderRadius: 8, overflow: "hidden" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, background: C.bg3 }}>
+                  <div style={{ border: `1px solid ${C.bd0}`, borderRadius: 8, overflowX: "auto" }}>
+                    <table style={{ minWidth: 600, width: "100%", borderCollapse: "collapse", fontSize: 13, background: C.bg3 }}>
                       <thead>
                         <tr style={{ borderBottom: `1px solid ${C.bd0}` }}>
                           <th style={{ padding: "8px 10px", textAlign: "left" }}>Họ Tên</th>
@@ -432,7 +432,7 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
                 <div key={clause} style={{ marginBottom: 8, borderRadius: 10, overflow: "hidden", border: `1px solid ${C.bd0}` }}>
                   <button onClick={() => setExpandedClauses(p => ({ ...p, [clause]: !expanded }))} style={{
                     width: "100%", padding: "12px 16px", background: C.bg3, border: "none", cursor: "pointer",
-                    display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between",
+                    display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between", flexWrap: "wrap",
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{ fontSize: 18, color: C.blueL, fontWeight: 700, fontFamily: "'Fira Code',monospace" }}>§{clause}</span>
@@ -448,7 +448,8 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
                   </button>
 
                   {expanded && (
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, background: C.bg2 }}>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ minWidth: 600, width: "100%", borderCollapse: "collapse", fontSize: 13, background: C.bg2 }}>
                       <thead>
                         <tr style={{ background: C.bg3 }}>
                           <th style={{ padding: "6px 10px", textAlign: "left", borderBottom: `1px solid ${C.bd0}`, width: 80 }}>ID</th>
@@ -499,6 +500,7 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
                         })}
                       </tbody>
                     </table>
+                    </div>
                   )}
                 </div>
               );
