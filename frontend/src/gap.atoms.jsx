@@ -218,7 +218,7 @@ export const Field = ({ label, required, children, sx={} }) => (
 export const Grid = ({ cols, gap=SPACE.lg, minCol="260px", children }) => (
   <div style={{
     display: "grid",
-    gridTemplateColumns: cols ? `repeat(auto-fit, minmax(min(100%, calc(100% / ${cols} - ${gap}px)), 1fr))` : `repeat(auto-fill, minmax(min(100%, ${minCol}), 1fr))`,
+    gridTemplateColumns: cols ? `repeat(auto-fit, minmax(min(100%, max(${minCol}, calc(100% / ${cols} - ${gap}px))), 1fr))` : `repeat(auto-fill, minmax(min(100%, ${minCol}), 1fr))`,
     gap,
   }}>{children}</div>
 );

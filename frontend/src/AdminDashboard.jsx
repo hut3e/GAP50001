@@ -506,7 +506,7 @@ export default function AdminDashboard({ apiUrl, initialTab = "surveys" }) {
       />
 
       {/* Thanh menu tab cho các khối quản trị */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
         {[
           ["surveys", "Quản trị GAP & Kế hoạch"],
           ["clients", "Quản trị Khách hàng"],
@@ -1085,8 +1085,8 @@ export default function AdminDashboard({ apiUrl, initialTab = "surveys" }) {
 
       {tab === "checklist" && (
         <Card title="Quản trị điều khoản GAP (CRUD)" icon="📝" accent={C.violet}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap: "wrap" }}>
               <Input value={clFilter} onChange={setClFilter} placeholder="Lọc theo id, clause, tiêu đề..." />
               <Btn v="outline" sz="sm" onClick={loadChecklist} disabled={clLoading}>🔄 Tải lại</Btn>
             </div>
@@ -1210,7 +1210,7 @@ export default function AdminDashboard({ apiUrl, initialTab = "surveys" }) {
       {tab === "dropdowns" && (
         <Card title="Quản trị Dropdown (Loại khu vực & Thiết bị)" icon="🗂️" accent={C.teal}>
           {/* Category switcher */}
-          <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+          <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap: "wrap" }}>
             {[["equipment_type","⚙️ Loại thiết bị"],["zone_type","🏭 Loại khu vực"]].map(([cat,label]) => (
               <button key={cat} type="button"
                 onClick={() => { setDdCategory(cat); setDdFilter(""); loadDropdowns(cat); }}
@@ -1224,8 +1224,8 @@ export default function AdminDashboard({ apiUrl, initialTab = "surveys" }) {
             ))}
           </div>
 
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:10 }}>
+            <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
               <Input value={ddFilter} onChange={setDdFilter} placeholder="Lọc theo id, tên..." />
               <Btn v="outline" sz="sm" onClick={() => loadDropdowns()} disabled={ddLoading}>🔄 Tải lại</Btn>
             </div>
