@@ -149,7 +149,7 @@ function LogoSlot({ value, onChange, title }) {
 }
 
 // ── Top bar ──────────────────────────────────────────────────────
-function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggleAdmin, onToggleKanban, onToggleLite, checklist = DEFAULT_CHECKLIST, currentUser, onLogout }) {
+function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggleAdmin, onToggleKanban, onToggleLite, checklist = DEFAULT_CHECKLIST, currentUser, onLogout, isMobile, setSidebarOpen }) {
   const r = survey.responses || {};
   const crit = checklist.filter(i=>(r[i.id]?.score||0)===1).length;
   const maj  = checklist.filter(i=>(r[i.id]?.score||0)===2).length;
@@ -171,28 +171,36 @@ function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggl
       gap: 16,
     }}>
       {/* Góc trái: Logo trái + Tên app */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
-        <LogoSlot value={meta.logo_left_url} onChange={v => setMeta("logo_left_url", v)} title="Logo trái" />
-        <div style={{ width: 1, height: 28, background: C.bd0, flexShrink: 0 }} />
+      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 14, minWidth: 0 }}>
+        {isMobile && (
+          <button onClick={() => setSidebarOpen(s => !s)} style={{ background: "none", border: "none", color: C.t0, fontSize: 24, cursor: "pointer", marginRight: -4, padding: "0 4px" }}>☰</button>
+        )}
+        {!isMobile && <LogoSlot value={meta.logo_left_url} onChange={v => setMeta("logo_left_url", v)} title="Logo trái" />}
+        {!isMobile && <div style={{ width: 1, height: 28, background: C.bd0, flexShrink: 0 }} />}
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <div style={{
             fontFamily: "'Rajdhani',sans-serif",
-            fontSize: FONT.headline,
+            fontSize: isMobile ? FONT.title : FONT.headline,
             fontWeight: 700,
             background: `linear-gradient(135deg,${C.blue},${C.tealL})`,
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
+            whiteSpace: "nowrap"
           }}>
-            ISO 50001·GAP
+            ISO 50001
           </div>
-          <span style={{ fontSize: FONT.body, fontWeight: 600, color: C.t1 }}>
-            {adminMode ? "Admin Dashboard" : "Field Survey Tool"}
-          </span>
-          <Tag c={C.blue}>v2024-2025</Tag>
+          {!isMobile && (
+            <>
+              <span style={{ fontSize: FONT.body, fontWeight: 600, color: C.t1 }}>
+                {adminMode ? "Admin Dashboard" : "Field Survey Tool"}
+              </span>
+              <Tag c={C.blue}>v2024-2025</Tag>
+            </>
+          )}
         </div>
       </div>
       {/* Giữa: Thống kê gap */}
-      {!adminMode && (
+      {!adminMode && !isMobile && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flex: 1, justifyContent: "center", minWidth: 0 }}>
           {crit > 0 && <Tag c={C.red}>{crit} Nghiêm trọng</Tag>}
           {maj > 0 && <Tag c={C.orange}>{maj} Khoảng cách lớn</Tag>}
@@ -200,8 +208,8 @@ function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggl
         </div>
       )}
       {/* Góc phải: Tiến độ + Logo phải + Admin */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-        {!adminMode && (
+      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 12, flexShrink: 0 }}>
+        {!adminMode && !isMobile && (
           <>
             <span style={{ fontSize: FONT.body, fontWeight: 600, color: C.t2 }}>{step + 1}/{total}</span>
             <div style={{ width: 88, height: 4, background: C.bg4, borderRadius: 2, overflow: "hidden" }}>
@@ -214,8 +222,8 @@ function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggl
             </div>
           </>
         )}
-        <LogoSlot value={meta.logo_right_url} onChange={v => setMeta("logo_right_url", v)} title="Logo phải" />
-        {onToggleLite && !adminMode && (
+        {!isMobile && <LogoSlot value={meta.logo_right_url} onChange={v => setMeta("logo_right_url", v)} title="Logo phải" />}
+        {onToggleLite && !adminMode && !isMobile && (
           <button onClick={onToggleLite} style={{
             padding: "6px 14px", borderRadius: 8, border: `1px solid ${C.orange}50`,
             background: `linear-gradient(135deg, ${C.orange}18, ${C.amber}10)`,
@@ -224,17 +232,17 @@ function TopBar({ step, total, survey, setSurvey, adminMode, kanbanMode, onToggl
           }}
           onMouseEnter={e => { e.currentTarget.style.background = `linear-gradient(135deg, ${C.orange}30, ${C.amber}20)`; e.currentTarget.style.transform = "scale(1.03)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = `linear-gradient(135deg, ${C.orange}18, ${C.amber}10)`; e.currentTarget.style.transform = ""; }}
-          >⚡ Lite Audit</button>
+          >⚡ Audit</button>
         )}
         <Btn v="ghost" sz="sm" onClick={onToggleKanban}>
-          {kanbanMode ? "← Về khảo sát" : "📊 Kanban / Lịch"}
+          {kanbanMode ? "← Về KS" : isMobile ? "📊" : "📊 Kanban"}
         </Btn>
         <Btn v="ghost" sz="sm" onClick={onToggleAdmin}>
-          {adminMode ? "← Về khảo sát" : "👑 Admin"}
+          {adminMode ? "← Về KS" : isMobile ? "👑" : "👑 Admin"}
         </Btn>
         {currentUser && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 4, padding: "4px 12px", background: `${C.bg3}80`, borderRadius: 8, border: `1px solid ${C.bd1}` }}>
-            <span style={{ fontSize: 14, color: C.tealL, fontWeight: 600 }}>{currentUser.displayName || currentUser.username}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 0, padding: "4px 8px", background: `${C.bg3}80`, borderRadius: 8, border: `1px solid ${C.bd1}` }}>
+            {!isMobile && <span style={{ fontSize: 13, color: C.tealL, fontWeight: 600 }}>{currentUser.displayName || currentUser.username}</span>}
             <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: `${C.blue}20`, color: C.blueL, fontWeight: 600 }}>{currentUser.role}</span>
             {onLogout && <button onClick={onLogout} style={{ background: "none", border: "none", color: C.t2, cursor: "pointer", fontSize: 16, padding: "0 4px" }} title="Đăng xuất">🚪</button>}
           </div>
@@ -280,7 +288,7 @@ function LoadSurveyDropdown({ onLoadList, onSelect, apiBase }) {
 }
 
 // ── Sidebar ──────────────────────────────────────────────────────
-function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave, saveLoading, onLoadList, onLoadOne, onNewSurvey, apiUrl, surveyId, apiInfo, onOpenAdminTab, onOpenUserManagement, currentUser }) {
+function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave, saveLoading, onLoadList, onLoadOne, onNewSurvey, apiUrl, surveyId, apiInfo, onOpenAdminTab, onOpenUserManagement, currentUser, isMobile, sidebarOpen, setSidebarOpen }) {
   return (
     <div style={{
       width: 260,
@@ -288,12 +296,16 @@ function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave,
       flexShrink: 0,
       background: C.bg1,
       borderRight: `1px solid ${C.bd0}`,
-      position: "sticky",
+      position: isMobile ? "fixed" : "sticky",
+      zIndex: isMobile ? 300 : "auto",
+      left: isMobile ? (sidebarOpen ? 0 : -260) : 0,
       top: 56,
       height: "calc(100vh - 56px)",
       overflowY: "auto",
       display: "flex",
       flexDirection: "column",
+      transition: "left 0.3s ease",
+      boxShadow: isMobile && sidebarOpen ? `5px 0 20px rgba(0,0,0,0.5)` : "none"
     }}>
       {/* Lưu / Tải / Phiên mới — đồng bộ DB & xem lại đánh giá GAP */}
       <div style={{ padding: "12px 14px", borderBottom: `1px solid ${C.bd0}`, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -319,7 +331,7 @@ function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave,
         const done = stepDone(i, survey, checklist);
         const active = step === i;
         return (
-          <button key={s.id} onClick={() => setStep(i)}
+          <button key={s.id} onClick={() => { setStep(i); if (isMobile) setSidebarOpen(false); }}
             style={{
               width: "100%",
               background: active ? `${C.blue}22` : "transparent",
@@ -367,6 +379,7 @@ function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave,
             key={m.id}
             type="button"
             onClick={() => {
+              if (isMobile) setSidebarOpen(false);
               if (m.userMgmt && onOpenUserManagement) return onOpenUserManagement();
               if (onOpenAdminTab) onOpenAdminTab(m.id, m.kanban);
             }}
@@ -401,7 +414,7 @@ function Sidebar({ step, setStep, survey, checklist = DEFAULT_CHECKLIST, onSave,
 }
 
 // ── Bottom nav ───────────────────────────────────────────────────
-function BottomNav({ step, setStep, total }) {
+function BottomNav({ step, setStep, total, isMobile }) {
   return (
     <div style={{
       display: "flex",
@@ -414,18 +427,20 @@ function BottomNav({ step, setStep, total }) {
       <Btn v="ghost" sz="md" onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0}>
         ← Trước
       </Btn>
-      <div style={{ display: "flex", gap: 6 }}>
+      <div style={{ display: "flex", gap: isMobile ? 4 : 6, flexWrap: "wrap", justifyContent: "center" }}>
         {STEPS.map((_, i) => (
-          <button key={i} onClick={() => setStep(i)}
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: "50%",
-              border: "none",
-              cursor: "pointer",
-              transition: "all .2s",
-              background: i === step ? C.blue : i < step ? C.tealL + "99" : C.bg4,
-            }}/>
+          (!isMobile || Math.abs(i - step) <= 3) && (
+            <button key={i} onClick={() => setStep(i)}
+              style={{
+                width: isMobile ? 8 : 10,
+                height: isMobile ? 8 : 10,
+                borderRadius: "50%",
+                border: "none",
+                cursor: "pointer",
+                transition: "all .2s",
+                background: i === step ? C.blue : i < step ? C.tealL + "99" : C.bg4,
+              }}/>
+          )
         ))}
       </div>
       {step < total - 1
@@ -466,6 +481,17 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
   const lastSavedRef = useRef(null);
   const [userManagementMode, setUserManagementMode] = useState(false);
   const [liteAuditOpen, setLiteAuditOpen] = useState(false);
+
+  // ── Mobile State ──
+  const [isMobile, setIsMobile] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 800);
+    handleResize(); // Initial check
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // ── Auth state ──
   const [authToken, setAuthToken] = useState(() => localStorage.getItem("gap_token") || null);
@@ -859,8 +885,9 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
             onToggleKanban={() => { setUserManagementMode(false); setKanbanMode(true); }}
             checklist={checklist}
             currentUser={currentUser} onLogout={handleLogout}
+            isMobile={isMobile} setSidebarOpen={setSidebarOpen}
           />
-          <div style={{ padding: "24px 32px 32px" }}>
+          <div style={{ padding: isMobile ? "16px 12px 24px" : "24px 32px 32px" }}>
             <SectionHeader icon="👥" title="Quản trị người dùng" badge="CRUD · Dashboard · Bảo mật" />
             <Suspense fallback={<div style={{ color: C.t2, fontSize: 15 }}>Đang tải…</div>}>
               <UserManagement apiUrl={apiUrl} token={authToken} currentUser={currentUser} />
@@ -883,8 +910,9 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
             onToggleAdmin={() => { setKanbanMode(false); setAdminMode(true); }}
             onToggleKanban={() => setKanbanMode(false)}
             checklist={checklist}
+            isMobile={isMobile} setSidebarOpen={setSidebarOpen}
           />
-          <div style={{ padding: "24px 32px 32px" }}>
+          <div style={{ padding: isMobile ? "16px 12px 24px" : "24px 32px 32px" }}>
             <SectionHeader icon="📊" title="Kanban & Lịch đánh giá GAP" badge="Kanban · Lịch · Thống kê · Telegram" />
             <Suspense fallback={<div style={{ color: C.t2, fontSize: 15 }}>Đang tải Kanban dashboard…</div>}>
               <KanbanDashboard apiUrl={apiUrl} initialTab={kanbanInitialTab} currentUser={currentUser} />
@@ -907,8 +935,9 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
             onToggleAdmin={() => setAdminMode(false)}
             onToggleKanban={() => { setAdminMode(false); setKanbanMode(true); }}
             checklist={checklist}
+            isMobile={isMobile} setSidebarOpen={setSidebarOpen}
           />
-          <div style={{ padding: "24px 40px 32px" }}>
+          <div style={{ padding: isMobile ? "16px 12px 24px" : "24px 40px 32px" }}>
             <SectionHeader icon="👑" title="Admin dashboard" badge="Khách hàng · Kế hoạch · Logistics" />
             <Suspense fallback={<div style={{ color: C.t2, fontSize: 15 }}>Đang tải Admin dashboard…</div>}>
               <AdminDashboard apiUrl={apiUrl} initialTab={adminInitialTab} />
@@ -939,8 +968,13 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
             setAdminInitialTab("surveys");
             setAdminMode((m) => !m);
           }}
+          isMobile={isMobile}
+          setSidebarOpen={setSidebarOpen}
         />
-        <div style={{ display: "flex", minHeight: "calc(100vh - 56px)", width: "100%" }}>
+        <div style={{ display: "flex", minHeight: "calc(100vh - 56px)", width: "100%", overflowX: "hidden", position: "relative" }}>
+          {isMobile && sidebarOpen && (
+            <div onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, top: 56, background: "rgba(0,0,0,0.5)", zIndex: 290 }} />
+          )}
           <Sidebar
             step={step}
             setStep={setStep}
@@ -971,11 +1005,14 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
               setAdminMode(false);
               setKanbanMode(false);
             }}
+            isMobile={isMobile}
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
           />
           <div style={{
             flex: 1,
             minWidth: 0,
-            padding: "24px 40px 32px",
+            padding: isMobile ? "16px 12px 24px" : "24px 40px 32px",
             overflowY: "auto",
             width: "100%",
             maxWidth: "none",
@@ -1009,7 +1046,7 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
               </Suspense>
             </div>
 
-            <BottomNav step={step} setStep={setStep} total={STEPS.length}/>
+            <BottomNav step={step} setStep={setStep} total={STEPS.length} isMobile={isMobile} />
           </div>
         </div>
 
