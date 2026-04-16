@@ -460,17 +460,18 @@ router.get("/:id/export-lite-docx", requireMongo, async (req, res) => {
     const { GAP_CHECKLIST } = require("../gap.constants");
     const { generateGapReportLite } = require("../gap.docx.lite.js");
 
-    const images = await Evidence.find({ surveyId: survey._id, type: "image", source: { $ne: "document" } }).lean();
-    const imagesByEqId = {};
-    images.forEach(img => {
-      const c = img.context || {};
-      if (c.equipment) {
-        if (!imagesByEqId[c.equipment]) imagesByEqId[c.equipment] = [];
-        imagesByEqId[c.equipment].push(img);
+    const customGaps = Array.isArray(survey.lite_custom_gaps) ? survey.lite_custom_gaps : [];
+    const liteOverrides = survey.lite_overrides || {};
+    const customItems = customGaps.map(c => ({ id: c.id, clause: c.clause, title: c.title, isCustom: true }));
+    const standardItems = GAP_CHECKLIST.filter(c => !liteOverrides[c.id]?.deleted).map(c => {
+      if (liteOverrides[c.id]?.title) {
+        return { ...c, title: liteOverrides[c.id].title, isEdited: true };
       }
+      return c;
     });
+    const checklist = [...standardItems, ...customItems];
 
-    const buffer = await generateGapReportLite(survey, GAP_CHECKLIST, imagesByEqId);
+    const buffer = await generateGapReportLite(survey, checklist);
 
     const filename = `Lite_Report_${survey.meta?.ref_no || "GAP"}.docx`;
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
@@ -489,24 +490,10 @@ router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
     const survey = await Survey.findById(req.params.id).lean();
     if (!survey) return res.status(404).json({ error: "Survey not found" });
 
-    // Fetch images linked to this survey
-    const images = await Evidence.find({ surveyId: survey._id, type: "image", source: { $ne: "document" } }).lean();
-
-    const imagesByEqId = {};
-    images.forEach(img => {
-      const c = img.context || {};
-      if (c.equipment) {
-        if (!imagesByEqId[c.equipment]) imagesByEqId[c.equipment] = [];
-        imagesByEqId[c.equipment].push(img);
-      }
-    });
-
     const d = survey;
     d.client = d.client || {};
     d.verifier = d.verifier || {};
-    d.site_assessments = Array.isArray(d.site_assessments) ? d.site_assessments : [];
-    d.meters = Array.isArray(d.meters) ? d.meters : [];
-    d.energy_details = Array.isArray(d.client.energy_details) ? d.client.energy_details : [];
+    d.lite_site_assessments = Array.isArray(d.lite_site_assessments) ? d.lite_site_assessments : [];
     
     let auditors = Array.isArray(d.audit_plan?.auditors) && d.audit_plan.auditors.length > 0 ? d.audit_plan.auditors : [];
     if (auditors.length === 0) {
@@ -524,27 +511,23 @@ router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
       <h3>1. THÔNG TIN CHUNG VỀ DOANH NGHIỆP PHÁT THẢI / SỬ DỤNG NĂNG LƯỢNG</h3>
       <table>
         <tr><th width="30%">Tên công ty:</th><td contenteditable="true">${d.client.name||"—"}</td></tr>
+        <tr><th>Cơ sở / Nhà máy:</th><td contenteditable="true">${d.client.site||"—"}</td></tr>
         <tr><th>Địa chỉ:</th><td contenteditable="true">${d.client.address||"—"}</td></tr>
+        <tr><th>Ngành nghề:</th><td contenteditable="true">${d.client.industry||"—"}</td></tr>
+        <tr><th>Năng lượng tiêu thụ (TOE/năm):</th><td contenteditable="true">${d.client.annual_energy||"—"}</td></tr>
         <tr><th>Người đại diện pháp luật:</th><td contenteditable="true">${d.client.representative_name||"—"} - ${d.client.representative_position||"—"}</td></tr>
-        <tr><th>Người liên hệ:</th><td contenteditable="true">${contactPersons.map(c => `${c.full_name||""} - ${c.phone||""} - ${c.email||""}`).join("<br/>")||"—"}</td></tr>
-        <tr><th>Sản phẩm / Dịch vụ chính:</th><td contenteditable="true">${d.client.products||"—"}</td></tr>
-      </table>
-      
-      <h4>1.1. Các loại năng lượng sử dụng và tiêu thụ</h4>
-      <table>
-        <tr><th width="5%">STT</th><th>Loại năng lượng</th><th>Sản lượng tiêu thụ</th><th>Đơn vị gốc</th><th>Năng lượng quy đổi (TOE)</th></tr>
-        ${d.energy_details.length ? d.energy_details.map((e,i) => `<tr><td style="text-align:center">${i+1}</td><td contenteditable="true">${e.type||"—"}</td><td contenteditable="true" style="text-align:center;color:#1976d2;font-weight:bold;">${e.amount||"—"}</td><td contenteditable="true" style="text-align:center">${e.unit||"—"}</td><td contenteditable="true" style="text-align:center;color:#388e3c;font-weight:bold;">${e.toe||"—"}</td></tr>`).join("") : '<tr><td colspan="5" style="text-align:center;color:#888;">Chưa có dữ liệu</td></tr>'}
+        <tr><th>Người liên hệ:</th><td contenteditable="true">${contactPersons.map(c => `${c.full_name||""} - ${c.position||""} - ${c.phone||""} - ${c.email||""}`).join("<br/>")||"—"}</td></tr>
       </table>
       
       <br/>
-      <h3>2. THÔNG TIN CHUNG VỀ TỔ CHỨC ĐÁNH GIÁ GAP ISO 50001</h3>
+      <h3>2. THÔNG TIN CHUNG VỀ TỔ CHỨC ĐÁNH GIÁ GAP ISO 50001 (LITE)</h3>
       <table>
-        <tr><th width="30%">Tên đơn vị đánh giá:</th><td contenteditable="true">${d.verifier.org||"—"}</td></tr>
-        <tr><th>Địa chỉ:</th><td contenteditable="true">${d.verifier.address||"—"}</td></tr>
+        <tr><th width="30%">Tên tổ chức tư vấn/đánh giá:</th><td contenteditable="true">${d.verifier.org||"—"}</td></tr>
+        <tr><th>Số chứng chỉ:</th><td contenteditable="true">${d.verifier.cert_no||"—"}</td></tr>
         <tr><th>Chương trình:</th><td contenteditable="true">${d.verifier.program||"—"}</td></tr>
       </table>
       
-      <h4>2.1. Đoàn chuyên gia thực hiện Khảo sát đánh giá Gap ISO 50001</h4>
+      <h4>2.1. Đoàn chuyên gia thực hiện Khảo sát</h4>
       <table>
         <tr><th width="5%">STT</th><th>Họ và tên</th><th>Vai trò</th><th>Chứng chỉ Năng lượng</th></tr>
         ${auditors.length ? auditors.map((a,i) => `<tr><td style="text-align:center">${i+1}</td><td contenteditable="true" style="font-weight:bold">${a.name||"—"}</td><td contenteditable="true">${a.role||"—"}</td><td contenteditable="true">${a.certificate||"—"}</td></tr>`).join("") : '<tr><td colspan="4" style="text-align:center;color:#888;">Chưa có dữ liệu</td></tr>'}
@@ -553,53 +536,53 @@ router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
 
     // GAP TABLE
     const { GAP_CHECKLIST } = require("../gap.constants");
+    const customGaps = Array.isArray(survey.lite_custom_gaps) ? survey.lite_custom_gaps : [];
+    const liteOverrides = survey.lite_overrides || {};
+    const customItems = customGaps.map(c => ({ id: c.id, clause: c.clause, title: c.title, isCustom: true }));
+    const standardItems = GAP_CHECKLIST.filter(c => !liteOverrides[c.id]?.deleted).map(c => {
+      if (liteOverrides[c.id]?.title) {
+        return { ...c, title: liteOverrides[c.id].title, isEdited: true };
+      }
+      return c;
+    });
+    const checklist = [...standardItems, ...customItems];
+
     let gapRows = "";
-    GAP_CHECKLIST.forEach((item, i) => {
+    checklist.forEach((item, i) => {
       const resp = (d.responses || {})[item.id] || {};
       const sc = resp.score || 0;
-      const notes = resp.notes || "Chưa có thông tin";
+      const note = resp.note || "Chưa có thông tin";
       const scColor = sc === 1 ? "#d32f2f" : sc === 2 ? "#ed6c02" : sc >= 4 ? "#2e7d32" : "#555";
-      gapRows += `<tr><td style="text-align:center">${i+1}</td><td style="text-align:center;font-weight:bold">${item.id}</td><td contenteditable="true">${item.title}</td><td contenteditable="true">${notes.replace(/\n/g, "<br/>")}</td><td contenteditable="true" style="text-align:center;font-weight:bold;color:${scColor}">${sc ? sc+"/5.0" : "—"}</td></tr>`;
+      const clauseColor = item.isCustom ? "#9c27b0" : "#222";
+      gapRows += `<tr><td style="text-align:center">${i+1}</td><td style="text-align:center;font-weight:bold;color:${clauseColor}">${item.id||`CUS-${item.clause}`}</td><td contenteditable="true">${item.title}</td><td contenteditable="true">${note.replace(/\n/g, "<br/>")}</td><td contenteditable="true" style="text-align:center;font-weight:bold;color:${scColor}">${sc ? sc+"/5.0" : "—"}</td></tr>`;
     });
     
-    // SEUs
-    let seuRows = "";
-    const seus = d.site_assessments.filter(z => z.is_seu);
-    seus.forEach((s, i) => {
-      seuRows += `<tr><td style="text-align:center">${i+1}</td><td contenteditable="true" style="font-weight:bold">${s.name||"—"}</td><td contenteditable="true" style="text-align:center">${s.energy_types||"—"}</td><td contenteditable="true" style="text-align:center;color:#1976d2;font-weight:bold;">${s.consumption||"—"}</td><td contenteditable="true" style="text-align:center;font-weight:bold;">${s.percentage?s.percentage+"%":"—"}</td></tr>`;
-    });
-
-    // METERS
-    let meterRows = "";
-    d.meters.forEach((m, i) => {
-      meterRows += `<tr><td style="text-align:center">${i+1}</td><td contenteditable="true" style="font-weight:bold">${m.name||"—"}</td><td contenteditable="true">${m.load_type||"—"}</td><td contenteditable="true">${m.collect_method||"—"}</td><td contenteditable="true" style="text-align:center">${m.frequency||"—"}</td><td contenteditable="true" style="text-align:center">${m.calib_status||"—"}</td></tr>`;
-    });
-
     // RISKS
     let riskRows = "";
     let rIdx = 1;
-    const allEquipments = d.site_assessments.flatMap(z => z.equipment || []);
-    const risksAndOpps = allEquipments.filter(e => (e.finding && e.finding.trim().length > 0) || (e.recommendation && e.recommendation.trim().length > 0) || (imagesByEqId[e.id] && imagesByEqId[e.id].length > 0));
+    const siteItems = d.lite_site_assessments || [];
     
-    risksAndOpps.forEach((e) => {
+    siteItems.forEach((e) => {
       let imgsHtml = "";
-      const eqImages = imagesByEqId[e.id] || [];
+      const eqImages = e.images || [];
       if (eqImages.length > 0) {
-        eqImages.forEach(img => {
-          const imgPath = path.resolve(__dirname, "../uploads", img.path || `${img.surveyId}/${img.filename}`);
-          if (fs.existsSync(imgPath)) {
-            const ext = img.filename.split('.').pop().toLowerCase() === 'png' ? 'png' : 'jpeg';
-            const base64 = fs.readFileSync(imgPath, { encoding: 'base64' });
-            imgsHtml += `<img src="data:image/${ext};base64,${base64}" />`;
-          }
+        eqImages.forEach(imgBase64 => {
+           if (imgBase64.startsWith("data:image/")) {
+             imgsHtml += `<img src="${imgBase64}" />`;
+           }
         });
       }
 
+      let detailsHtml = "";
+      if (e.status) detailsHtml += `- Hiện trạng: ${e.status}<br/>`;
+      if (e.risk) detailsHtml += `- Rủi ro: ${e.risk}<br/>`;
+      if (e.opportunity) detailsHtml += `- Cơ hội cải tiến: ${e.opportunity}`;
+
       riskRows += `<tr>
         <td style="text-align:center" class="stt">${rIdx++}</td>
-        <td contenteditable="true" style="font-weight:bold">${e.name||"—"}</td>
-        <td contenteditable="true">${e.type||"—"}</td>
-        <td contenteditable="true">${(e.finding||"—").replace(/\n/g, '<br/>')}</td>
+        <td contenteditable="true" style="font-weight:bold">${e.area||"—"}</td>
+        <td contenteditable="true">${e.area_type||"—"}</td>
+        <td contenteditable="true">${detailsHtml || "—"}</td>
         <td tabindex="0" onpaste="handlePaste(event, this)" style="text-align: center; vertical-align: middle; padding: 5px; cursor: pointer;">
           <div style="font-size: 11px; color:#999; margin-bottom:5px;" class="no-print">[Click và nhấn Ctrl+V paste ảnh]</div>
           ${imgsHtml}
@@ -645,25 +628,13 @@ router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
         
         <h3>3. ĐÁNH GIÁ KHOẢNG CÁCH HỒ SƠ TÀI LIỆU VỚI ISO 50001:2018</h3>
         <table>
-          <tr><th width="5%">STT</th><th width="10%">Điều khoản</th><th width="35%">Yêu cầu ISO 50001:2018</th><th width="40%">Trạng thái hiện tại</th><th width="10%">Điểm</th></tr>
+          <tr><th width="5%">STT</th><th width="10%">Điều khoản</th><th width="35%">Yêu cầu/Phát hiện ISO 50001:2018</th><th width="40%">Nhận xét hiện tại</th><th width="10%">Điểm</th></tr>
           ${gapRows}
         </table>
         
-        <h3>4. DANH SÁCH KHU VỰC SỬ DỤNG NĂNG LƯỢNG ĐÁNG KỂ (SEU)</h3>
-        <table>
-          <tr><th width="5%">STT</th><th>Tên SEU / Khu vực</th><th>Loại Năng lượng</th><th>Lượng NL SD</th><th>Tỷ lệ % năng lượng</th></tr>
-          ${seuRows || '<tr><td colspan="5" style="text-align:center;color:#888;">Chưa có dữ liệu</td></tr>'}
-        </table>
-        
-        <h3>5. THỐNG KÊ THIẾT BỊ ĐO LƯỜNG NĂNG LƯỢNG</h3>
-        <table>
-          <tr><th width="5%">STT</th><th>Tên ĐH</th><th>Phụ tải đo</th><th>Phương thức thu thập</th><th>Tần suất chốt</th><th>Kiểm định/HC</th></tr>
-          ${meterRows || '<tr><td colspan="6" style="text-align:center;color:#888;">Chưa có dữ liệu</td></tr>'}
-        </table>
-        
-        <h3>6. RỦI RO & CƠ HỘI CẢI TIẾN TẠI HIỆN TRƯỜNG</h3>
+        <h3>4. ĐÁNH GIÁ KHU VỰC SỬ DỤNG NĂNG LƯỢNG (HIỆN TRƯỜNG)</h3>
         <table id="riskTable">
-          <tr><th width="5%">STT</th><th width="20%">Tên thiết bị / Hệ thống</th><th width="15%">Loại</th><th width="30%">Phát hiện (Rủi ro & Cơ hội)</th><th width="22%">Hình ảnh chứng minh</th><th width="8%" class="no-print" style="text-align:center">Thao tác</th></tr>
+          <tr><th width="5%">STT</th><th width="20%">Tên khu vực / Máy</th><th width="15%">Loại</th><th width="30%">Phát hiện (Hiện trạng, Rủi ro, Cơ hội)</th><th width="22%">Hình ảnh chứng minh</th><th width="8%" class="no-print" style="text-align:center">Thao tác</th></tr>
           ${riskRows || '<tr><td colspan="6" style="text-align:center;color:#888;">Chưa có dữ liệu</td></tr>'}
         </table>
         <div class="no-print" style="text-align:right;">

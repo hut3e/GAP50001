@@ -9,9 +9,7 @@ function applyDefaults(data) {
   d.client = d.client || {};
   d.verifier = d.verifier || {};
   d.responses = d.responses || {};
-  d.site_assessments = Array.isArray(d.site_assessments) ? d.site_assessments : [];
-  d.meters = Array.isArray(d.meters) ? d.meters : [];
-  d.energy_details = Array.isArray(d.client.energy_details) ? d.client.energy_details : [];
+  d.lite_site_assessments = Array.isArray(d.lite_site_assessments) ? d.lite_site_assessments : [];
   return d;
 }
 
@@ -26,8 +24,20 @@ function buildBasicInfo(d) {
         new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.client.name||"—",{sz:24})] })
       ]}),
       new TableRow({ children:[
+        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Cơ sở / Nhà máy:",{sz:24,bold:true})] }),
+        new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.client.site||"—",{sz:24})] })
+      ]}),
+      new TableRow({ children:[
         new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Địa chỉ:",{sz:24,bold:true})] }),
         new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.client.address||"—",{sz:24})] })
+      ]}),
+      new TableRow({ children:[
+        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Ngành nghề:",{sz:24,bold:true})] }),
+        new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.client.industry||"—",{sz:24})] })
+      ]}),
+      new TableRow({ children:[
+        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Năng lượng tiêu thụ (TOE/năm):",{sz:24,bold:true})] }),
+        new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.client.annual_energy||"—",{sz:24})] })
       ]}),
       new TableRow({ children:[
         new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Người đại diện pháp luật:",{sz:24,bold:true})] }),
@@ -36,75 +46,37 @@ function buildBasicInfo(d) {
       new TableRow({ children:[
         new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Người liên hệ:",{sz:24,bold:true})] }),
         new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[
-          ...(d.client.contact_persons||[]).map(c => P(`${c.full_name||"—"} - ${c.phone||"—"} - ${c.email||"—"}`, {sz:24}))
+          ...(d.client.contact_persons||[]).map(c => P(`${c.full_name||"—"} - ${c.position||"—"} - ${c.phone||"—"} - ${c.email||"—"}`, {sz:24}))
         ] })
-      ]}),
-      new TableRow({ children:[
-        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Sản phẩm / Dịch vụ chính:",{sz:24,bold:true})] }),
-        new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.client.products||"—",{sz:24})] })
       ]})
     ]
   }));
   items.push(SP());
 
-  // Năng lượng sử dụng
-  items.push(H2("1.1. Các loại năng lượng sử dụng và tiêu thụ"));
-  items.push(new Table({ width:{size:TW,type:WidthType.DXA}, layout: TableLayoutType.FIXED, columnWidths:[400, 3000, 2000, 1500, 2460],
-    rows:[
-      TH(["STT","Loại năng lượng","Sản lượng tiêu thụ","Đơn vị gốc","Năng lượng quy đổi (TOE)"],[400, 3000, 2000, 1500, 2460]),
-      ...d.energy_details.map((e,i) => new TableRow({ children:[
-        new TableCell({ width:{size:400}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(String(i+1),{sz:24,c:true})] }),
-        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(e.type||"—",{sz:24,bold:true})] }),
-        new TableCell({ width:{size:2000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(e.amount||"—",{sz:24,c:true})] }),
-        new TableCell({ width:{size:1500}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(e.unit||"—",{sz:24,c:true})] }),
-        new TableCell({ width:{size:2460}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(e.toe||"—",{sz:24,c:true})] })
-      ]}))
-    ]
-  }));
-  items.push(SP());
-
   // Đơn vị thực hiện đánh giá
-  items.push(H1("2. THÔNG TIN CHUNG VỀ TỔ CHỨC ĐÁNH GIÁ GAP ISO 50001"));
+  items.push(H1("2. THÔNG TIN CHUNG VỀ TỔ CHỨC ĐÁNH GIÁ GAP ISO 50001 (LITE)"));
   items.push(new Table({ width:{size:TW,type:WidthType.DXA}, layout: TableLayoutType.FIXED, columnWidths:[3000, 6360],
     rows:[
       new TableRow({ children:[
-        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Tên đơn vị đánh giá:",{sz:24,bold:true})] }),
+        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Tên tổ chức tư vấn/đánh giá:",{sz:24,bold:true})] }),
         new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.verifier.org||"—",{sz:24})] })
       ]}),
       new TableRow({ children:[
-        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Địa chỉ:",{sz:24,bold:true})] }),
-        new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.verifier.address||"—",{sz:24})] })
+        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Số chứng chỉ:",{sz:24,bold:true})] }),
+        new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.verifier.cert_no||"—",{sz:24})] })
       ]}),
       new TableRow({ children:[
-        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Chương trình:",{sz:24,bold:true})] }),
-        new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.verifier.program||"—",{sz:24})] })
+        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Trưởng đoàn đánh giá:",{sz:24,bold:true})] }),
+        new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.verifier.lead||"—",{sz:24})] })
       ]}),
-    ]
-  }));
-  items.push(SP());
-
-  // Chuyên gia đánh giá
-  items.push(H2("2.1. Đoàn chuyên gia thực hiện Khảo sát đánh giá Gap ISO 50001"));
-  let auditors = Array.isArray(d.audit_plan?.auditors) && d.audit_plan.auditors.length > 0 
-    ? d.audit_plan.auditors 
-    : [];
-  if (auditors.length === 0) {
-    if (d.verifier?.lead) auditors.push({ name: d.verifier.lead, role: 'Trưởng đoàn', certificate: d.verifier?.cert_no || '' });
-    if (d.verifier?.team) {
-       d.verifier.team.split(';').map(s=>s.trim()).filter(Boolean).forEach(t => {
-           auditors.push({ name: t, role: 'Thành viên', certificate: '' });
-       });
-    }
-  }
-  items.push(new Table({ width:{size:TW,type:WidthType.DXA}, layout: TableLayoutType.FIXED, columnWidths:[400, 3000, 2000, 3960],
-    rows:[
-      TH(["STT","Họ và tên","Vai trò","Chứng chỉ Năng lượng"],[400, 3000, 2000, 3960]),
-      ...auditors.map((a,i) => new TableRow({ children:[
-        new TableCell({ width:{size:400}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(String(i+1),{sz:24,c:true})] }),
-        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(a.name||"—",{sz:24,bold:true})] }),
-        new TableCell({ width:{size:2000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(a.role||"—",{sz:24})] }),
-        new TableCell({ width:{size:3960}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(a.certificate||"—",{sz:24})] })
-      ]}))
+      new TableRow({ children:[
+        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Thành viên / Chuyên gia:",{sz:24,bold:true})] }),
+        new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.verifier.team||"—",{sz:24})] })
+      ]}),
+      new TableRow({ children:[
+        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(C.lBlue), margins:CM, children:[P("Tiêu chuẩn áp dụng:",{sz:24,bold:true})] }),
+        new TableCell({ width:{size:6360}, borders:cb(), shading:sh(C.white), margins:CM, children:[P(d.verifier.std_applied||"ISO 50001:2018",{sz:24})] })
+      ]}),
     ]
   }));
   items.push(SP(), PBR());
@@ -115,18 +87,18 @@ function buildGapTable(d, checklist) {
   const items = [H1("3. ĐÁNH GIÁ KHOẢNG CÁCH HỒ SƠ TÀI LIỆU VỚI ISO 50001:2018")];
   
   const rows = [];
-  rows.push(TH(["STT","Điều khoản","Yêu cầu ISO 50001:2018","Trạng thái hiện tại","Điểm"],[400, 1200, 4000, 2500, 1260]));
+  rows.push(TH(["STT","Điều khoản","Yêu cầu/Phát hiện ISO 50001:2018","Nhận xét hiện tại","Điểm"],[400, 1200, 4000, 2500, 1260]));
   
   checklist.forEach((item, i) => {
     const resp = d.responses[item.id] || {};
     const sc = resp.score || 0;
-    const notes = resp.notes || "Chưa có thông tin";
+    const note = resp.note || "Chưa có thông tin"; // In Lite it saves as 'note'
     
     rows.push(new TableRow({ children:[
       new TableCell({ width:{size:400}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(String(i+1),{sz:24,c:true})] }),
-      new TableCell({ width:{size:1200}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(item.id,{sz:24,bold:true,c:true})] }),
+      new TableCell({ width:{size:1200}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(item.id||`CUS-${item.clause}`,{sz:24,bold:true,c:true,col:item.isCustom?C.violet:C.black})] }),
       new TableCell({ width:{size:4000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(item.title,{sz:24})] }),
-      new TableCell({ width:{size:2500}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(notes,{sz:24})] }),
+      new TableCell({ width:{size:2500}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(note,{sz:24})] }),
       new TableCell({ width:{size:1260}, borders:cb(), shading:sh(sc===1?`${C.red}18`:sc===2?`${C.orange}18`:sc>=4?`${C.teal}18`:C.ash), margins:CMs, children:[P(sc?`${sc}/5.0`:"—",{sz:24,c:true,bold:true,col:scoreColor(sc)})] })
     ]}));
   });
@@ -136,82 +108,52 @@ function buildGapTable(d, checklist) {
   return items;
 }
 
-function buildSeusTable(d) {
-  const items = [H1("4. DANH SÁCH KHU VỰC SỬ DỤNG NĂNG LƯỢNG ĐÁNG KỂ (SEU)")];
-  const seus = d.site_assessments.filter(z => z.is_seu);
-
-  items.push(new Table({ width:{size:TW,type:WidthType.DXA}, layout: TableLayoutType.FIXED, columnWidths:[400, 3000, 2000, 2000, 1960],
-    rows:[
-      TH(["STT","Tên SEU / Khu vực","Loại Năng lượng","Lượng NL sử dụng","Tỷ lệ % năng lượng"],[400, 3000, 2000, 2000, 1960]),
-      ...seus.map((s,i) => new TableRow({ children:[
-        new TableCell({ width:{size:400}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(String(i+1),{sz:24,c:true})] }),
-        new TableCell({ width:{size:3000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(s.name||"—",{sz:24,bold:true})] }),
-        new TableCell({ width:{size:2000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(s.energy_types||"—",{sz:24,c:true})] }),
-        new TableCell({ width:{size:2000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(s.consumption||"—",{sz:24,c:true})] }),
-        new TableCell({ width:{size:1960}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(s.percentage?`${s.percentage}%`:"—",{sz:24,c:true})] })
-      ]}))
-    ]
-  }));
-  items.push(SP());
-  return items;
-}
-
-function buildMetersTableLite(d) {
-  const items = [H1("5. THỐNG KÊ THIẾT BỊ ĐO LƯỜNG NĂNG LƯỢNG")];
+function buildLiteSiteEvents(d) {
+  const items = [H1("4. ĐÁNH GIÁ KHU VỰC SỬ DỤNG NĂNG LƯỢNG (HIỆN TRƯỜNG)")];
   
-  items.push(new Table({ width:{size:TW,type:WidthType.DXA}, layout: TableLayoutType.FIXED, columnWidths:[400, 1600, 2000, 2000, 1600, 1760],
-    rows:[
-      TH(["STT","Tên ĐH","Phụ tải đo","Phương thức thu thập","Tần suất chốt","Kiểm định/HC"],[400, 1600, 2000, 2000, 1600, 1760]),
-      ...d.meters.map((m,i) => new TableRow({ children:[
-        new TableCell({ width:{size:400}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(String(i+1),{sz:24,c:true})] }),
-        new TableCell({ width:{size:1600}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(m.name||"—",{sz:24,bold:true})] }),
-        new TableCell({ width:{size:2000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(m.load_type||"—",{sz:24})] }),
-        new TableCell({ width:{size:2000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(m.collect_method||"—",{sz:24})] }),
-        new TableCell({ width:{size:1600}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(m.frequency||"—",{sz:24})] }),
-        new TableCell({ width:{size:1760}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(m.calib_status||"—",{sz:24})] }),
-      ]}))
-    ]
-  }));
-  items.push(SP(), PBR());
-  return items;
-}
+  const siteItems = d.lite_site_assessments || [];
 
-function buildRisksTableWait(d, imagesByEqId) {
-  const items = [H1("6. RỦI RO & CƠ HỘI CẢI TIẾN TẠI HIỆN TRƯỜNG")];
-  
-  const allEquipments = d.site_assessments.flatMap(z => z.equipment || []);
-  const risksAndOpps = allEquipments.filter(e => (e.finding && e.finding.trim().length > 0) || (e.recommendation && e.recommendation.trim().length > 0) || (imagesByEqId[e.id] && imagesByEqId[e.id].length > 0));
+  if (siteItems.length === 0) {
+    items.push(P("Không có đánh giá hiện trường nào.", {sz:24, c:true, col:C.grey2}));
+    items.push(SP(), PBR());
+    return items;
+  }
 
-  items.push(new Table({ width:{size:TW,type:WidthType.DXA}, layout: TableLayoutType.FIXED, columnWidths:[400, 2000, 1800, 2800, 2360],
+  items.push(new Table({ width:{size:TW,type:WidthType.DXA}, layout: TableLayoutType.FIXED, columnWidths:[400, 1600, 1400, 3160, 2800],
     rows:[
-      TH(["STT","Tên thiết bị / Hệ thống","Loại","Phát hiện (Rủi ro & Cơ hội cải tiến)","Hình ảnh"],[400, 2000, 1800, 2800, 2360]),
-      ...risksAndOpps.map((e,i) => {
+      TH(["STT","Tên khu vực / Máy","Loại","Phát hiện (Hiện trạng, Rủi ro, Cơ hội)","Hình ảnh"],[400, 1600, 1400, 3160, 2800]),
+      ...siteItems.map((e,i) => {
         const pRuns = [];
-        const eqImages = imagesByEqId[e.id] || [];
+        const eqImages = e.images || [];
         if (eqImages.length > 0) {
-          eqImages.forEach(img => {
-            const imgPath = path.resolve(__dirname, "./uploads", img.path || `${img.surveyId}/${img.filename}`);
-            if (fs.existsSync(imgPath)) {
-              try {
-                const imgData = fs.readFileSync(imgPath);
+          eqImages.forEach(imgBase64 => {
+            try {
+              if (imgBase64.startsWith("data:image/")) {
+                const base64Data = imgBase64.replace(/^data:image\/\w+;base64,/, "");
+                const imgBuffer = Buffer.from(base64Data, 'base64');
                 pRuns.push(new ImageRun({
-                  data: imgData,
+                  data: imgBuffer,
                   transformation: { width: 140, height: 100 },
                 }));
                 pRuns.push(new TextRun({ text: "  " })); // spacer
-              } catch (err) {
-                 console.error("Error reading docx img:", err);
               }
+            } catch (err) {
+               console.error("Error embedding docx img:", err);
             }
           });
         }
+
+        const details = [];
+        if (e.status) details.push(`- Hiện trạng: ${e.status}`);
+        if (e.risk) details.push(`- Rủi ro: ${e.risk}`);
+        if (e.opportunity) details.push(`- Cơ hội cải tiến: ${e.opportunity}`);
         
         return new TableRow({ children:[
           new TableCell({ width:{size:400}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(String(i+1),{sz:24,c:true})] }),
-          new TableCell({ width:{size:2000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(e.name||"—",{sz:24,bold:true})] }),
-          new TableCell({ width:{size:1800}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(e.type||"—",{sz:24})] }),
-          new TableCell({ width:{size:2800}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(e.finding||"—",{sz:24})] }),
-          new TableCell({ width:{size:2360}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[new Paragraph({ children: pRuns.length > 0 ? pRuns : [new TextRun({ text:"Không có ảnh", color:C.grey2 })], alignment:"center" })] }),
+          new TableCell({ width:{size:1600}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(e.area||"—",{sz:24,bold:true})] }),
+          new TableCell({ width:{size:1400}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(e.area_type||"—",{sz:24})] }),
+          new TableCell({ width:{size:3160}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(details.join('\n')||"—",{sz:24})] }),
+          new TableCell({ width:{size:2800}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[new Paragraph({ children: pRuns.length > 0 ? pRuns : [new TextRun({ text:"Không có ảnh", color:C.grey2 })], alignment:"center" })] }),
         ]});
       })
     ]
@@ -220,7 +162,7 @@ function buildRisksTableWait(d, imagesByEqId) {
   return items;
 }
 
-async function generateGapReportLite(data, checklist = [], imagesByEqId = {}) {
+async function generateGapReportLite(data, checklist = []) {
   const d = applyDefaults(data);
   const children = [
     // Header/Title
@@ -233,9 +175,7 @@ async function generateGapReportLite(data, checklist = [], imagesByEqId = {}) {
     }),
     ...buildBasicInfo(d),
     ...buildGapTable(d, checklist),
-    ...buildSeusTable(d),
-    ...buildMetersTableLite(d),
-    ...buildRisksTableWait(d, imagesByEqId),
+    ...buildLiteSiteEvents(d),
   ];
 
   const doc = new Document({
@@ -256,3 +196,4 @@ async function generateGapReportLite(data, checklist = [], imagesByEqId = {}) {
 }
 
 module.exports = { generateGapReportLite };
+
