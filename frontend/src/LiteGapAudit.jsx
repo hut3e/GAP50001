@@ -141,8 +141,8 @@ function DashboardPanel({ checklist, resp, clauseGroups }) {
       {/* ─ KPI Cards ─ */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(148px,1fr))", gap:12 }}>
         {[
-          { icon:"📋", label:"Tổng tiêu chí",    val: checklist.length,               col:"#60a5fa",
-            tip:"Gồm tiêu chí chuẩn ISO + tùy chỉnh" },
+          { icon:"📋", label:"Tổng chỉ mục đánh giá", val: checklist.length,           col:"#60a5fa",
+            tip:"Gồm chỉ mục chuẩn ISO 50001:2018 + chỉ mục tùy chỉnh bổ sung" },
           { icon:"✅", label:"Đã đánh giá",       val: allScored.length,               col:"#2dd4bf",
             tip:"Tiêu chí đã nhập điểm 1–5" },
           { icon:"⏳", label:"Chưa đánh giá",     val: notScored,                      col:"#f59e0b",
