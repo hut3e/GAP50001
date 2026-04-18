@@ -116,9 +116,9 @@ app.use("/api/surveys", (req, res, next) => {
 
 app.use("/api/surveys/:surveyId/evidence", evidenceRoutes); // auth middleware đã được xử lý ở app.use('/api/surveys') phía trên
 
-app.use("/api/iso50001/gap", authRequired, gapRoutes);
-app.use("/api/iso50001/gap/checklist", authRequired, checklistRoutes);
-app.use("/api/iso50001/gap/dropdowns", authRequired, dropdownRoutes);
+app.use("/api/iso50001/gap", authOptional, gapRoutes);
+app.use("/api/iso50001/gap/checklist", authOptional, checklistRoutes);
+app.use("/api/iso50001/gap/dropdowns", authOptional, dropdownRoutes);
 app.use("/api/notifications", authRequired, notificationRoutes);
 app.use("/api/clients", authRequired, require("./routes/clients"));
 app.use("/api/auditors", authRequired, require("./routes/auditors"));
