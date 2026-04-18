@@ -14,6 +14,7 @@ import { Btn, Tag, Field, Input, TA, Sel, Modal, Grid } from "./gap.atoms.jsx";
 const TABS = [
   { id: "info", icon: "🏭", label: "Thông tin chung" },
   { id: "check", icon: "📋", label: "Đánh giá GAP" },
+  { id: "dashboard", icon: "📊", label: "Dashboard" },
   { id: "site", icon: "🏗️", label: "Hiện trường" },
   { id: "export", icon: "📄", label: "Xuất báo cáo" },
 ];
@@ -52,6 +53,239 @@ function getClauseGroups(checklist) {
     groups[clause].push(item);
   });
   return groups;
+}
+
+// ── Score colour helpers (mirrors backend) ──────────────────────
+const SC_COL = ["#718096","#dc2626","#ea580c","#d97706","#059669","#0d9488"];
+const SC_BG  = ["#F4F6F8","#FEE2E2","#FEF3C7","#FEF9E7","#D1FAE5","#CCFBF1"];
+const SC_LBL = ["N/A","Chưa triển khai","Mới bắt đầu","Đang phát triển","Phần lớn đáp ứng","Hoàn toàn đáp ứng"];
+
+// ── DashboardPanel ────────────────────────────────────────────────
+function DashboardPanel({ checklist, resp, clauseGroups }) {
+  const allScored  = checklist.filter(i => (resp[i.id]?.score || 0) > 0);
+  const totalScore = allScored.reduce((a, i) => a + (resp[i.id]?.score || 0), 0);
+  const avgScore   = allScored.length ? (totalScore / allScored.length) : 0;
+  const maxScore   = allScored.length ? Math.max(...allScored.map(i => resp[i.id]?.score || 0)) : 0;
+  const minScore   = allScored.length ? Math.min(...allScored.map(i => resp[i.id]?.score || 0)) : 0;
+
+  const clauseStats = CLAUSE_KEYS.map(clause => {
+    const items = clauseGroups[clause] || [];
+    const scored = items.filter(i => (resp[i.id]?.score || 0) > 0);
+    const avg = scored.length ? scored.reduce((a, i) => a + (resp[i.id]?.score || 0), 0) / scored.length : 0;
+    return { clause, name: CLAUSE_NAMES[clause] || clause, total: items.length, scored: scored.length, avg };
+  }).filter(s => s.total > 0);
+
+  const scoreDist = [1,2,3,4,5].map(s => ({
+    score: s, count: checklist.filter(i => (resp[i.id]?.score || 0) === s).length,
+    label: SC_LBL[s], col: SC_COL[s],
+  }));
+  const totalDistCount = scoreDist.reduce((a, d) => a + d.count, 0);
+
+  const kpiCol = avgScore >= 4 ? "#0d9488" : avgScore >= 3 ? "#059669" : avgScore >= 2 ? "#d97706" : "#dc2626";
+
+  // Bar chart
+  const BAR_W = 480, BAR_H = 200, BAR_PAD = 40, BAR_GAP = 8;
+  const barCount = clauseStats.length;
+  const barW = barCount > 0 ? Math.floor((BAR_W - BAR_PAD * 2 - BAR_GAP * (barCount - 1)) / barCount) : 60;
+
+  // Donut chart
+  const DONUT_R = 70, DONUT_CX = 90, DONUT_CY = 90;
+  let startAngle = -Math.PI / 2;
+  const donutSegs = scoreDist.filter(d => d.count > 0).map(d => {
+    const angle = totalDistCount > 0 ? (d.count / totalDistCount) * 2 * Math.PI : 0;
+    const x1 = DONUT_CX + DONUT_R * Math.cos(startAngle);
+    const y1 = DONUT_CY + DONUT_R * Math.sin(startAngle);
+    startAngle += angle;
+    const x2 = DONUT_CX + DONUT_R * Math.cos(startAngle);
+    const y2 = DONUT_CY + DONUT_R * Math.sin(startAngle);
+    const largeArc = angle > Math.PI ? 1 : 0;
+    return { ...d, path: `M${DONUT_CX},${DONUT_CY} L${x1.toFixed(1)},${y1.toFixed(1)} A${DONUT_R},${DONUT_R} 0 ${largeArc} 1 ${x2.toFixed(1)},${y2.toFixed(1)} Z` };
+  });
+
+  // Radar chart
+  const RAD = 90, CX = 110, CY = 110, N = clauseStats.length;
+  const getRadarPt = (idx, val) => {
+    const angle = (2 * Math.PI * idx / N) - Math.PI / 2;
+    return { x: CX + RAD * val * Math.cos(angle), y: CY + RAD * val * Math.sin(angle) };
+  };
+  const radarPts = clauseStats.map(s => s.avg / 5);
+  const radarPoints = radarPts.map((v, i) => getRadarPt(i, v));
+  const radarPath = radarPoints.length >= 3
+    ? radarPoints.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ") + " Z"
+    : "";
+  const gridLevels = [0.2, 0.4, 0.6, 0.8, 1.0];
+  const labelPts = clauseStats.map((s, i) => { const p = getRadarPt(i, 1.22); return { ...p, label: `§${s.clause}` }; });
+
+  return (
+    <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* KPI Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(148px,1fr))", gap: 12 }}>
+        {[
+          { icon: "📋", label: "Tổng điều khoản",  val: checklist.length, col: "#60a5fa" },
+          { icon: "✅", label: "Đã đánh giá",       val: allScored.length, col: "#2dd4bf" },
+          { icon: "⏳", label: "Chưa đánh giá",     val: checklist.length - allScored.length, col: "#d97706" },
+          { icon: "⭐", label: "Điểm TB",            val: avgScore > 0 ? avgScore.toFixed(2)+"/5" : "—", col: kpiCol },
+          { icon: "🔝", label: "Điểm cao nhất",      val: maxScore > 0 ? maxScore+"/5" : "—", col: "#059669" },
+          { icon: "🔻", label: "Điểm thấp nhất",     val: minScore > 0 ? minScore+"/5" : "—", col: "#dc2626" },
+          { icon: "📈", label: "Tỷ lệ đánh giá",    val: checklist.length > 0 ? Math.round(allScored.length/checklist.length*100)+"%" : "0%", col: "#7c3aed" },
+        ].map(k => (
+          <div key={k.label} style={{ background:`${k.col}12`, border:`1px solid ${k.col}30`, borderRadius:12, padding:"14px 12px", textAlign:"center" }}>
+            <div style={{ fontSize:22, marginBottom:6 }}>{k.icon}</div>
+            <div style={{ fontSize:22, fontWeight:800, color:k.col, fontFamily:"'Rajdhani',sans-serif", lineHeight:1 }}>{k.val}</div>
+            <div style={{ fontSize:11, color:"#7dd3fc", marginTop:4, textTransform:"uppercase", letterSpacing:"0.04em" }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bar + Donut */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        {/* Bar Chart */}
+        <div style={{ background:"#0c2840", borderRadius:14, border:"1px solid rgba(56,189,248,.2)", padding:20 }}>
+          <div style={{ fontSize:14, fontWeight:700, color:"#60a5fa", marginBottom:14 }}>📊 Điểm trung bình theo điều khoản</div>
+          {clauseStats.length === 0
+            ? <div style={{ color:"#7dd3fc", textAlign:"center", padding:30 }}>Chưa có dữ liệu.</div>
+            : <svg width="100%" viewBox={`0 0 ${BAR_W} ${BAR_H+40}`} style={{ overflow:"visible" }}>
+                {[1,2,3,4,5].map(v => {
+                  const y = (BAR_H - BAR_PAD) - (v/5)*(BAR_H - BAR_PAD*2) + BAR_PAD;
+                  return (<g key={v}>
+                    <line x1={BAR_PAD} y1={y} x2={BAR_W-BAR_PAD} y2={y} stroke="rgba(56,189,248,0.12)" strokeWidth={1} strokeDasharray="4 4"/>
+                    <text x={BAR_PAD-6} y={y+4} textAnchor="end" fontSize={9} fill="#7dd3fc">{v}</text>
+                  </g>);
+                })}
+                {clauseStats.map((s, i) => {
+                  const bh = s.avg > 0 ? ((s.avg/5)*(BAR_H-BAR_PAD*2)) : 2;
+                  const bx = BAR_PAD + i*(barW+BAR_GAP);
+                  const by = BAR_H - BAR_PAD - bh;
+                  const col = SC_COL[Math.round(s.avg)] || "#60a5fa";
+                  return (<g key={s.clause}>
+                    <rect x={bx} y={by} width={barW} height={bh} fill={col} rx={4} opacity={0.85}/>
+                    <text x={bx+barW/2} y={by-4} textAnchor="middle" fontSize={10} fill={col} fontWeight="700">{s.avg>0?s.avg.toFixed(1):"—"}</text>
+                    <text x={bx+barW/2} y={BAR_H-BAR_PAD+14} textAnchor="middle" fontSize={11} fill="#c5e8fd" fontWeight="700">§{s.clause}</text>
+                    <text x={bx+barW/2} y={BAR_H-BAR_PAD+26} textAnchor="middle" fontSize={9} fill="#7dd3fc">{s.scored}/{s.total}</text>
+                  </g>);
+                })}
+                <line x1={BAR_PAD} y1={BAR_H-BAR_PAD} x2={BAR_W-BAR_PAD} y2={BAR_H-BAR_PAD} stroke="rgba(56,189,248,0.3)" strokeWidth={1}/>
+              </svg>
+          }
+        </div>
+
+        {/* Donut Chart */}
+        <div style={{ background:"#0c2840", borderRadius:14, border:"1px solid rgba(56,189,248,.2)", padding:20 }}>
+          <div style={{ fontSize:14, fontWeight:700, color:"#60a5fa", marginBottom:14 }}>🍩 Phân bố Điểm đánh giá</div>
+          {totalDistCount === 0
+            ? <div style={{ color:"#7dd3fc", textAlign:"center", padding:30 }}>Chưa có dữ liệu.</div>
+            : <div style={{ display:"flex", gap:16, alignItems:"center", flexWrap:"wrap" }}>
+                <svg width={180} height={180} viewBox="0 0 180 180">
+                  {donutSegs.map((seg, i) => <path key={i} d={seg.path} fill={seg.col} opacity={0.85}/>)}
+                  <circle cx={DONUT_CX} cy={DONUT_CY} r={36} fill="#0c2840"/>
+                  <text x={DONUT_CX} y={DONUT_CY-4} textAnchor="middle" fontSize={18} fill="#f8fcff" fontWeight="800" fontFamily="Rajdhani,sans-serif">{avgScore>0?avgScore.toFixed(1):"—"}</text>
+                  <text x={DONUT_CX} y={DONUT_CY+12} textAnchor="middle" fontSize={9} fill="#7dd3fc">Điểm TB</text>
+                </svg>
+                <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1, minWidth:100 }}>
+                  {scoreDist.filter(d=>d.count>0).map(d=>(
+                    <div key={d.score} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <div style={{ width:10, height:10, borderRadius:"50%", background:d.col, flexShrink:0 }}/>
+                      <div style={{ fontSize:11, color:"#c5e8fd", flex:1 }}>{d.score} — {d.label}</div>
+                      <div style={{ fontSize:11, fontWeight:700, color:d.col }}>{d.count}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+          }
+        </div>
+      </div>
+
+      {/* Radar + Summary Table */}
+      <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:16 }}>
+        {/* Radar */}
+        <div style={{ background:"#0c2840", borderRadius:14, border:"1px solid rgba(56,189,248,.2)", padding:16 }}>
+          <div style={{ fontSize:14, fontWeight:700, color:"#60a5fa", marginBottom:10 }}>🕸️ Biểu đồ mạng nhện</div>
+          {radarPoints.length < 3
+            ? <div style={{ color:"#7dd3fc", fontSize:12, textAlign:"center", padding:20 }}>Cần ≥ 3 điều khoản.</div>
+            : <svg width="100%" viewBox={`0 0 ${CX*2} ${CY*2}`} style={{ overflow:"visible" }}>
+                {gridLevels.map(lv => (
+                  <polygon key={lv} fill="none" stroke="rgba(56,189,248,0.15)" strokeWidth={1}
+                    points={clauseStats.map((_,i)=>{ const p=getRadarPt(i,lv); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(" ")}/>
+                ))}
+                {clauseStats.map((_,i)=>{ const p=getRadarPt(i,1); return <line key={i} x1={CX} y1={CY} x2={p.x.toFixed(1)} y2={p.y.toFixed(1)} stroke="rgba(56,189,248,.2)" strokeWidth={1}/>; })}
+                {radarPath && <polygon points={radarPoints.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} fill="#60a5fa22" stroke="#60a5fa" strokeWidth={2}/>}
+                {radarPoints.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r={4} fill={SC_COL[Math.round(clauseStats[i]?.avg||0)]||"#60a5fa"}/>)}
+                {labelPts.map((p,i)=><text key={i} x={p.x.toFixed(1)} y={p.y.toFixed(1)} textAnchor="middle" fontSize={11} fill="#c5e8fd" fontWeight="700">{p.label}</text>)}
+                {gridLevels.map(lv=>{ const p=getRadarPt(0,lv); return <text key={lv} x={p.x+4} y={p.y} fontSize={8} fill="#7dd3fc">{(lv*5).toFixed(0)}</text>; })}
+              </svg>
+          }
+        </div>
+
+        {/* Summary Table */}
+        <div style={{ background:"#0c2840", borderRadius:14, border:"1px solid rgba(56,189,248,.2)", padding:16, overflowX:"auto" }}>
+          <div style={{ fontSize:14, fontWeight:700, color:"#60a5fa", marginBottom:12 }}>📋 Tổng hợp điểm theo điều khoản ISO 50001:2018</div>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+            <thead>
+              <tr style={{ background:"#163d62" }}>
+                {["Điều khoản","Tên nhóm","Số tiêu chí","Đã đánh giá","Điểm TB","Xếp loại","Thanh điểm"].map(h=>(
+                  <th key={h} style={{ padding:"8px 10px", textAlign:"left", color:"#c5e8fd", fontWeight:700, fontSize:11, whiteSpace:"nowrap", borderBottom:"1px solid rgba(56,189,248,.2)" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {clauseStats.map((s,i)=>{
+                const col = SC_COL[Math.round(s.avg)]||"#718096";
+                const pct = (s.avg/5)*100;
+                return (
+                  <tr key={s.clause} style={{ background:i%2?"rgba(22,61,98,.3)":"transparent", borderBottom:"1px solid rgba(56,189,248,.08)" }}>
+                    <td style={{ padding:"8px 10px", fontFamily:"'Fira Code',monospace", color:"#60a5fa", fontWeight:700 }}>§{s.clause}</td>
+                    <td style={{ padding:"8px 10px", color:"#f8fcff" }}>{s.name}</td>
+                    <td style={{ padding:"8px 10px", color:"#c5e8fd", textAlign:"center" }}>{s.total}</td>
+                    <td style={{ padding:"8px 10px", textAlign:"center" }}>
+                      <span style={{ color:s.scored===s.total?"#2dd4bf":"#d97706", fontWeight:700 }}>{s.scored}</span>
+                      <span style={{ color:"#7dd3fc" }}>/{s.total}</span>
+                    </td>
+                    <td style={{ padding:"8px 10px", textAlign:"center" }}>
+                      <span style={{ color:col, fontWeight:800, fontSize:14, fontFamily:"'Rajdhani',sans-serif" }}>{s.avg>0?s.avg.toFixed(2):"—"}</span>
+                      <span style={{ color:"#7dd3fc", fontSize:10 }}>/5</span>
+                    </td>
+                    <td style={{ padding:"8px 10px" }}>
+                      <span style={{ display:"inline-block", padding:"2px 8px", borderRadius:5, background:`${col}20`, color:col, fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>
+                        {s.avg===0?"Chưa đánh giá":SC_LBL[Math.round(s.avg)]}
+                      </span>
+                    </td>
+                    <td style={{ padding:"8px 10px", minWidth:100 }}>
+                      <div style={{ height:8, borderRadius:4, background:"rgba(56,189,248,.12)", overflow:"hidden" }}>
+                        <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${col},${col}aa)`, borderRadius:4, transition:"width .4s" }}/>
+                      </div>
+                      <div style={{ fontSize:9, color:"#7dd3fc", marginTop:2, textAlign:"right" }}>{pct.toFixed(0)}%</div>
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr style={{ background:"#113352", borderTop:"2px solid rgba(56,189,248,.3)", fontWeight:700 }}>
+                <td colSpan={3} style={{ padding:"10px", color:"#c5e8fd", textAlign:"right" }}>📊 Tổng cộng / Trung bình</td>
+                <td style={{ padding:"10px", textAlign:"center" }}>
+                  <span style={{ color:"#2dd4bf", fontWeight:800 }}>{allScored.length}</span>
+                  <span style={{ color:"#7dd3fc" }}>/{checklist.length}</span>
+                </td>
+                <td style={{ padding:"10px", textAlign:"center" }}>
+                  <span style={{ fontSize:16, fontWeight:800, color:kpiCol, fontFamily:"'Rajdhani',sans-serif" }}>{avgScore>0?avgScore.toFixed(2):"—"}</span>
+                  <span style={{ color:"#7dd3fc", fontSize:10 }}>/5</span>
+                </td>
+                <td style={{ padding:"10px" }}>
+                  <span style={{ display:"inline-block", padding:"2px 8px", borderRadius:5, background:`${kpiCol}25`, color:kpiCol, fontSize:11, fontWeight:700 }}>
+                    {avgScore>=4.5?"Xuất sắc":avgScore>=3.5?"Tốt":avgScore>=2.5?"Trung bình":avgScore>0?"Yếu":"Chưa đánh giá"}
+                  </span>
+                </td>
+                <td style={{ padding:"10px", minWidth:100 }}>
+                  <div style={{ height:10, borderRadius:5, background:"rgba(56,189,248,.12)", overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:`${(avgScore/5)*100}%`, background:`linear-gradient(90deg,${kpiCol},#2dd4bf)`, borderRadius:5 }}/>
+                  </div>
+                  <div style={{ fontSize:9, color:"#7dd3fc", marginTop:2, textAlign:"right" }}>{((avgScore/5)*100).toFixed(0)}%</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl, onSave, setToast }) {
@@ -542,6 +776,11 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
               );
             })}
           </div>
+        )}
+
+        {/* Tab: Dashboard */}
+        {tab === "dashboard" && (
+          <DashboardPanel checklist={checklist} resp={resp} clauseGroups={clauseGroups} />
         )}
 
         {/* Tab: Hiện trường */}
