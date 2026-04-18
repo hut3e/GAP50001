@@ -108,6 +108,114 @@ function buildGapTable(d, checklist) {
   return items;
 }
 
+// ── Score helpers ────────────────────────────────────────────────
+const CLAUSE_KEYS = ["4","5","6","7","8","9","10"];
+const CLAUSE_NAMES = {
+  "4":"Bối cảnh tổ chức","5":"Lãnh đạo","6":"Hoạch định",
+  "7":"Hỗ trợ","8":"Vận hành","9":"Đánh giá kết quả","10":"Cải tiến"
+};
+const SC_LABEL = ["N/A","Chưa triển khai","Mới bắt đầu","Đang phát triển","Phần lớn đáp ứng","Hoàn toàn đáp ứng"];
+
+function buildDashboard(d, checklist) {
+  const items = [H1("3.1. TỔNG HỢP & PHÂN TÍCH KẾT QUẢ ĐÁNH GIÁ GAP")];
+  const resp = d.responses || {};
+  const allScored  = checklist.filter(i => (resp[i.id]?.score || 0) > 0);
+  const totalScore = allScored.reduce((a, i) => a + (resp[i.id]?.score || 0), 0);
+  const avgScore   = allScored.length ? totalScore / allScored.length : 0;
+  const maxScore   = allScored.length ? Math.max(...allScored.map(i => resp[i.id]?.score || 0)) : 0;
+  const minScore   = allScored.length ? Math.min(...allScored.map(i => resp[i.id]?.score || 0)) : 0;
+  const pct        = checklist.length ? Math.round(allScored.length / checklist.length * 100) : 0;
+
+  const kpiColor = avgScore >= 4 ? C.teal : avgScore >= 3 ? C.green : avgScore >= 2 ? C.orange : C.red;
+
+  // ── KPI Summary table (2-col key/value pairs) ─────────────────
+  items.push(H2("A. CHỈ SỐ TỔNG QUAN (KPI)"));
+  items.push(new Table({ width:{size:TW,type:WidthType.DXA}, layout: TableLayoutType.FIXED, columnWidths:[4680, 4680],
+    rows:[
+      TH(["CHỈ SỐ","GIÁ TRỊ"],[4680,4680]),
+      ...[
+        ["📋 Tổng số điều khoản đánh giá", String(checklist.length)],
+        ["✅ Số điều khoản đã đánh giá",    String(allScored.length)],
+        ["⏳ Số điều khoản chưa đánh giá",  String(checklist.length - allScored.length)],
+        ["📈 Tỷ lệ hoàn thành đánh giá",   `${pct}%`],
+        ["⭐ Điểm trung bình tổng thể",     avgScore > 0 ? `${avgScore.toFixed(2)} / 5.0` : "—"],
+        ["🔝 Điểm cao nhất",                maxScore > 0 ? `${maxScore} / 5.0` : "—"],
+        ["🔻 Điểm thấp nhất",               minScore > 0 ? `${minScore} / 5.0` : "—"],
+        ["🏆 Xếp loại tổng thể",
+          avgScore >= 4.5 ? "XUẤT SẮC" : avgScore >= 3.5 ? "TỐT" :
+          avgScore >= 2.5 ? "TRUNG BÌNH" : avgScore > 0 ? "YẾU" : "CHƯA ĐÁNH GIÁ"],
+      ].map(([k, v], i) => new TableRow({ children:[
+        new TableCell({ width:{size:4680}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CM, children:[P(k,{sz:24,bold:true})] }),
+        new TableCell({ width:{size:4680}, borders:cb(), shading:sh(i%2?C.white:scoreBg(Math.round(avgScore))), margins:CM, children:[P(v,{sz:24,bold:true,c:true,col:kpiColor})] }),
+      ]}))
+    ]
+  }));
+  items.push(SP());
+
+  // ── Per-clause score table ─────────────────────────────────────
+  items.push(H2("B. ĐIỂM ĐÁNH GIÁ THEO ĐIỀU KHOẢN ISO 50001:2018"));
+  const clauseWidths = [400, 1600, 1360, 800, 800, 1600, 2800];
+  items.push(new Table({ width:{size:TW,type:WidthType.DXA}, layout: TableLayoutType.FIXED, columnWidths: clauseWidths,
+    rows:[
+      TH(["§","Tên nhóm","Đánh giá","Điểm TB","Tỷ lệ","Xếp loại","Thanh điểm"], clauseWidths),
+      ...CLAUSE_KEYS.flatMap(clause => {
+        const cItems = checklist.filter(i => String(i.clause||"").split(".")[0] === clause);
+        if (cItems.length === 0) return [];
+        const cScored = cItems.filter(i => (resp[i.id]?.score||0) > 0);
+        const cAvg = cScored.length ? cScored.reduce((a,i) => a+(resp[i.id]?.score||0),0)/cScored.length : 0;
+        const cPct = cItems.length ? Math.round(cScored.length/cItems.length*100) : 0;
+        const cCol = scoreColor(Math.round(cAvg));
+        const cBg  = scoreBg(Math.round(cAvg));
+        const barLen = Math.round(cAvg/5*20);
+        const bar = "█".repeat(barLen) + "░".repeat(20-barLen);
+        return [new TableRow({ children:[
+          new TableCell({ width:{size:400}, borders:cb(), shading:sh(C.navy), margins:CMs, children:[P(`§${clause}`,{sz:22,bold:true,c:true,col:C.white})] }),
+          new TableCell({ width:{size:1600}, borders:cb(), shading:sh(C.ash), margins:CMs, children:[P(CLAUSE_NAMES[clause]||clause,{sz:22})] }),
+          new TableCell({ width:{size:1360}, borders:cb(), shading:sh(C.ash), margins:CMs, children:[P(`${cScored.length}/${cItems.length}`,{sz:22,c:true})] }),
+          new TableCell({ width:{size:800}, borders:cb(), shading:sh(cBg), margins:CMs, children:[P(cAvg>0?cAvg.toFixed(2):"—",{sz:22,bold:true,c:true,col:cCol})] }),
+          new TableCell({ width:{size:800}, borders:cb(), shading:sh(cBg), margins:CMs, children:[P(`${cPct}%`,{sz:22,c:true,col:cCol})] }),
+          new TableCell({ width:{size:1600}, borders:cb(), shading:sh(cBg), margins:CMs, children:[P(SC_LABEL[Math.round(cAvg)]||"—",{sz:20,bold:true,col:cCol})] }),
+          new TableCell({ width:{size:2800}, borders:cb(), shading:sh(C.white), margins:CMs, children:[P(bar,{sz:18,col:cCol})] }),
+        ]})];
+      }),
+      // Total row
+      new TableRow({ children:[
+        new TableCell({ width:{size:400+1600}, borders:cb(), shading:sh(C.navy), margins:CMs,
+          children:[P("TỔNG / TRUNG BÌNH",{sz:22,bold:true,col:C.white,c:true})], columnSpan:2 }),
+        new TableCell({ width:{size:1360}, borders:cb(), shading:sh(scoreBg(Math.round(avgScore))), margins:CMs, children:[P(`${allScored.length}/${checklist.length}`,{sz:22,bold:true,c:true})] }),
+        new TableCell({ width:{size:800}, borders:cb(), shading:sh(scoreBg(Math.round(avgScore))), margins:CMs, children:[P(avgScore>0?avgScore.toFixed(2):"—",{sz:24,bold:true,c:true,col:kpiColor})] }),
+        new TableCell({ width:{size:800}, borders:cb(), shading:sh(scoreBg(Math.round(avgScore))), margins:CMs, children:[P(`${pct}%`,{sz:22,bold:true,c:true,col:kpiColor})] }),
+        new TableCell({ width:{size:1600+2800}, borders:cb(), shading:sh(scoreBg(Math.round(avgScore))), margins:CMs,
+          children:[P(avgScore>=4.5?"XUẤT SẮC":avgScore>=3.5?"TỐT":avgScore>=2.5?"TRUNG BÌNH":avgScore>0?"YẾU":"CHƯA ĐÁNH GIÁ",{sz:24,bold:true,col:kpiColor,c:true})], columnSpan:2 }),
+      ]}
+    ]
+  }));
+  items.push(SP());
+
+  // ── Score distribution table ────────────────────────────────────
+  items.push(H2("C. PHÂN BỐ ĐIỂM ĐÁNH GIÁ"));
+  const distCols = [800, 2400, 1200, 4960];
+  const distData = [1,2,3,4,5].map(s => {
+    const cnt = checklist.filter(i => (resp[i.id]?.score||0) === s).length;
+    const pct2 = checklist.length ? Math.round(cnt/checklist.length*100) : 0;
+    const bar = "█".repeat(Math.round(pct2/5)) + "░".repeat(20-Math.round(pct2/5));
+    return { s, cnt, pct: pct2, col: scoreColor(s), bg: scoreBg(s), label: SC_LABEL[s], bar };
+  });
+  items.push(new Table({ width:{size:TW,type:WidthType.DXA}, layout: TableLayoutType.FIXED, columnWidths: distCols,
+    rows:[
+      TH(["Điểm","Ý nghĩa","Số lượng","Phân bố"], distCols),
+      ...distData.map(d => new TableRow({ children:[
+        new TableCell({ width:{size:800}, borders:cb(), shading:sh(d.bg), margins:CMs, children:[P(`${d.s}/5`,{sz:24,bold:true,c:true,col:d.col})] }),
+        new TableCell({ width:{size:2400}, borders:cb(), shading:sh(d.bg), margins:CMs, children:[P(d.label,{sz:22,col:d.col,bold:true})] }),
+        new TableCell({ width:{size:1200}, borders:cb(), shading:sh(d.bg), margins:CMs, children:[P(`${d.cnt} (${d.pct}%)`,{sz:22,c:true,col:d.col})] }),
+        new TableCell({ width:{size:4960}, borders:cb(), shading:sh(C.white), margins:CMs, children:[P(d.bar,{sz:18,col:d.col})] }),
+      ]}))
+    ]
+  }));
+  items.push(SP(), PBR());
+  return items;
+}
+
 function buildLiteSiteEvents(d) {
   const items = [H1("4. ĐÁNH GIÁ KHU VỰC SỬ DỤNG NĂNG LƯỢNG (HIỆN TRƯỜNG)")];
   
@@ -175,6 +283,7 @@ async function generateGapReportLite(data, checklist = []) {
     }),
     ...buildBasicInfo(d),
     ...buildGapTable(d, checklist),
+    ...buildDashboard(d, checklist),
     ...buildLiteSiteEvents(d),
   ];
 

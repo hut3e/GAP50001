@@ -690,6 +690,121 @@ router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
       </tr>`;
     });
 
+    // ─── Dashboard Analytics ───────────────────────────────────────
+    const CLAUSE_KEYS_D = ["4","5","6","7","8","9","10"];
+    const CLAUSE_NAMES_D = {"4":"Bối cảnh tổ chức","5":"Lãnh đạo","6":"Hoạch định","7":"Hỗ trợ","8":"Vận hành","9":"Đánh giá kết quả","10":"Cải tiến"};
+    const SC_COLORS = ["#718096","#dc2626","#ea580c","#d97706","#059669","#0d9488"];
+    const SC_BG_D   = ["#F5F5F5","#FFF5F5","#FFFAF0","#FEFCE8","#F0FFF4","#F0FDFA"];
+    const SC_LBL_D  = ["N/A","Chưa triển khai","Mới bắt đầu","Đang phát triển","Phần lớn đáp ứng","Hoàn toàn đáp ứng"];
+    const respD = d.responses || {};
+    const allScoredD = checklist.filter(i => (respD[i.id]?.score || 0) > 0);
+    const avgScoreD  = allScoredD.length ? allScoredD.reduce((a,i)=>a+(respD[i.id]?.score||0),0)/allScoredD.length : 0;
+    const maxScoreD  = allScoredD.length ? Math.max(...allScoredD.map(i=>respD[i.id]?.score||0)) : 0;
+    const minScoreD  = allScoredD.length ? Math.min(...allScoredD.map(i=>respD[i.id]?.score||0)) : 0;
+    const pctD       = checklist.length ? Math.round(allScoredD.length/checklist.length*100) : 0;
+    const kpiColD    = avgScoreD>=4?"#0d9488":avgScoreD>=3?"#059669":avgScoreD>=2?"#d97706":"#dc2626";
+    const kpiLabelD  = avgScoreD>=4.5?"XUẤT SẮC":avgScoreD>=3.5?"TỐT":avgScoreD>=2.5?"TRUNG BÌNH":avgScoreD>0?"YẾU":"CHƯA ĐÁNH GIÁ";
+
+    const kpiCards = [
+      { icon:"📋", label:"Tổng điều khoản",  val: checklist.length,                                                col:"#2563eb" },
+      { icon:"✅", label:"Đã đánh giá",       val: allScoredD.length,                                              col:"#0d9488" },
+      { icon:"⏳", label:"Chưa đánh giá",     val: checklist.length - allScoredD.length,                           col:"#d97706" },
+      { icon:"⭐", label:"Điểm TB",            val: avgScoreD>0?avgScoreD.toFixed(2)+"/5":"—",                     col: kpiColD },
+      { icon:"🔝", label:"Điểm cao nhất",      val: maxScoreD>0?maxScoreD+"/5":"—",                                col:"#059669" },
+      { icon:"🔻", label:"Điểm thấp nhất",     val: minScoreD>0?minScoreD+"/5":"—",                                col:"#dc2626" },
+      { icon:"📈", label:"Tỷ lệ hoàn thành",  val: pctD+"%",                                                      col:"#7c3aed" },
+      { icon:"🏆", label:"Xếp loại",           val: kpiLabelD,                                                     col: kpiColD },
+    ].map(k=>`
+      <div style="background:${k.col}11;border:2px solid ${k.col}33;border-radius:12px;padding:18px 14px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;">
+        <div style="font-size:28px">${k.icon}</div>
+        <div style="font-size:22px;font-weight:800;color:${k.col};font-family:'Georgia',serif;line-height:1">${k.val}</div>
+        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:0.05em;font-weight:600">${k.label}</div>
+      </div>`).join("");
+
+    const clauseRows = CLAUSE_KEYS_D.map(clause => {
+      const cItems = checklist.filter(i => String(i.clause||"").split(".")[0] === clause);
+      if (!cItems.length) return "";
+      const cScored = cItems.filter(i => (respD[i.id]?.score||0) > 0);
+      const cAvg = cScored.length ? cScored.reduce((a,i)=>a+(respD[i.id]?.score||0),0)/cScored.length : 0;
+      const cPct = cItems.length ? Math.round(cScored.length/cItems.length*100) : 0;
+      const cScoreRound = Math.round(cAvg);
+      const cCol = SC_COLORS[cScoreRound]||"#718096";
+      const cBg  = SC_BG_D[cScoreRound]||"#F5F5F5";
+      const barPct = (cAvg/5*100).toFixed(0);
+      return `<tr style="background:${cBg}">
+        <td style="text-align:center;font-weight:800;color:#1B3564;font-size:15px">§${clause}</td>
+        <td style="font-weight:600">${CLAUSE_NAMES_D[clause]||clause}</td>
+        <td style="text-align:center"><span style="color:${cScored.length===cItems.length?"#059669":"#d97706"};font-weight:700">${cScored.length}</span>/${cItems.length}</td>
+        <td style="text-align:center;font-weight:800;font-size:16px;color:${cCol}">${cAvg>0?cAvg.toFixed(2):"—"}<span style="font-size:11px;color:#888">/5</span></td>
+        <td><div style="background:#e5e5e5;border-radius:6px;height:12px;overflow:hidden"><div style="height:100%;width:${barPct}%;background:linear-gradient(90deg,${cCol},${cCol}88);border-radius:6px;transition:width .3s"></div></div><div style="font-size:10px;color:${cCol};text-align:right;margin-top:2px">${barPct}%</div></td>
+        <td style="text-align:center"><span style="display:inline-block;padding:3px 10px;border-radius:6px;background:${cCol}18;color:${cCol};font-weight:700;font-size:12px;white-space:nowrap">${SC_LBL_D[cScoreRound]||"—"}</span></td>
+      </tr>`;
+    }).join("");
+
+    const distRows = [1,2,3,4,5].map(s => {
+      const cnt = checklist.filter(i=>(respD[i.id]?.score||0)===s).length;
+      const pct2 = checklist.length?Math.round(cnt/checklist.length*100):0;
+      const col = SC_COLORS[s], bg = SC_BG_D[s];
+      return `<tr style="background:${bg}">
+        <td style="text-align:center;font-weight:800;color:${col};font-size:16px">${s}<span style="font-size:11px;font-weight:400">/5</span></td>
+        <td style="font-weight:600;color:${col}">${SC_LBL_D[s]}</td>
+        <td style="text-align:center;font-weight:800;color:${col}">${cnt}</td>
+        <td style="text-align:center;font-weight:700;color:${col}">${pct2}%</td>
+        <td><div style="background:#e5e5e5;border-radius:6px;height:10px;overflow:hidden"><div style="height:100%;width:${pct2}%;background:linear-gradient(90deg,${col},${col}88);border-radius:6px"></div></div></td>
+      </tr>`;
+    }).join("");
+
+    const dashboardHtml = `
+      <div style="page-break-before:auto;margin:30px 0">
+        <h3 style="color:#0d47a1;border-bottom:3px solid #1565c0;padding-bottom:8px;margin-bottom:20px">
+          3.1. TỔNG HỢP &amp; PHÂN TÍCH KẾT QUẢ ĐÁNH GIÁ GAP
+        </h3>
+
+        <h4 style="color:#0277bd;margin-bottom:14px">A. CHỈ SỐ TỔNG QUAN (KPI)</h4>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px">
+          ${kpiCards}
+        </div>
+
+        <h4 style="color:#0277bd;margin-bottom:14px">B. ĐIỂM ĐÁNH GIÁ THEO ĐIỀU KHOẢN ISO 50001:2018</h4>
+        <table style="margin-bottom:28px">
+          <thead>
+            <tr style="background:#1B3564;color:#fff">
+              <th style="color:#fff;width:6%">§</th>
+              <th style="color:#fff;width:22%">Tên nhóm điều khoản</th>
+              <th style="color:#fff;width:10%;text-align:center">Đã đánh giá</th>
+              <th style="color:#fff;width:10%;text-align:center">Điểm TB</th>
+              <th style="color:#fff;width:22%">Thanh điểm</th>
+              <th style="color:#fff;width:30%;text-align:center">Xếp loại</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${clauseRows}
+            <tr style="background:#e3f2fd;font-weight:700">
+              <td colspan="2" style="text-align:right;color:#1B3564;padding-right:12px">📊 Tổng cộng / Trung bình</td>
+              <td style="text-align:center"><span style="color:#059669">${allScoredD.length}</span>/${checklist.length}</td>
+              <td style="text-align:center;font-size:18px;color:${kpiColD}">${avgScoreD>0?avgScoreD.toFixed(2):"—"}<span style="font-size:11px;color:#888">/5</span></td>
+              <td><div style="background:#e5e5e5;border-radius:6px;height:14px;overflow:hidden"><div style="height:100%;width:${(avgScoreD/5*100).toFixed(0)}%;background:linear-gradient(90deg,${kpiColD},#2dd4bf);border-radius:6px"></div></div><div style="font-size:10px;text-align:right;color:${kpiColD}">${(avgScoreD/5*100).toFixed(0)}%</div></td>
+              <td style="text-align:center"><span style="display:inline-block;padding:4px 14px;border-radius:8px;background:${kpiColD}22;color:${kpiColD};font-weight:800;font-size:14px">${kpiLabelD}</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h4 style="color:#0277bd;margin-bottom:14px">C. PHÂN BỐ ĐIỂM ĐÁNH GIÁ</h4>
+        <table style="margin-bottom:20px">
+          <thead>
+            <tr style="background:#1B3564;color:#fff">
+              <th style="color:#fff;width:8%;text-align:center">Điểm</th>
+              <th style="color:#fff;width:25%">Ý nghĩa</th>
+              <th style="color:#fff;width:8%;text-align:center">Số lượng</th>
+              <th style="color:#fff;width:8%;text-align:center">Tỷ lệ</th>
+              <th style="color:#fff">Phân bố trực quan</th>
+            </tr>
+          </thead>
+          <tbody>${distRows}</tbody>
+        </table>
+      </div>
+    `;
+
     const html = `
     <!DOCTYPE html>
     <html lang="vi">
@@ -728,7 +843,7 @@ router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
           <tr><th width="5%">STT</th><th width="10%">Điều khoản</th><th width="35%">Yêu cầu/Phát hiện ISO 50001:2018</th><th width="40%">Nhận xét hiện tại</th><th width="10%">Điểm</th></tr>
           ${gapRows}
         </table>
-        
+        ${dashboardHtml}
         <h3>4. ĐÁNH GIÁ KHU VỰC SỬ DỤNG NĂNG LƯỢNG (HIỆN TRƯỜNG)</h3>
         <table id="riskTable">
           <tr><th width="5%">STT</th><th width="20%">Tên khu vực / Máy</th><th width="15%">Loại</th><th width="30%">Phát hiện (Hiện trạng, Rủi ro, Cơ hội)</th><th width="22%">Hình ảnh chứng minh</th><th width="8%" class="no-print" style="text-align:center">Thao tác</th></tr>
