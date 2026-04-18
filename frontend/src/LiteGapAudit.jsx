@@ -245,25 +245,61 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
   // Export handlers
   const [exporting, setExporting] = useState(false);
   const handleExportLite = async (type) => {
-    let activeId = survey._id;
-    if (!activeId && onSave) {
-      setExporting(true);
-      activeId = await onSave();
-      setExporting(false);
+    // Validate basic requirements first
+    if (!survey.meta?.ref_no || !survey.client?.name) {
+      setToast?.({ type: "error", msg: "⚠️ Cần nhập Mã khảo sát và Tên tổ chức trước khi xuất báo cáo." });
+      return;
     }
-    if (!activeId) { setToast?.({ type: "error", msg: "Cần lưu phiên trước khi xuất." }); return; }
+    // Always auto-save first to ensure latest Lite data is in DB
+    let activeId = survey._id;
+    if (onSave) {
+      setExporting(true);
+      try {
+        const savedId = await onSave();
+        if (savedId) activeId = savedId;
+      } catch(e) {
+        // Save failed, but continue if we have existing _id
+      } finally {
+        setExporting(false);
+      }
+    }
+    if (!activeId) {
+      setToast?.({ type: "error", msg: "⚠️ Cần lưu phiên trước khi xuất. (Kiểm tra Mã khảo sát và Tên tổ chức)" });
+      return;
+    }
     setExporting(true);
     try {
-      const base = apiUrl ? apiUrl.replace(/\/$/, "") : "";
-      const res = await fetch(`${base}/api/surveys/${activeId}/export-lite-${type}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Resolve base URL — same logic as StepExport
+      const b = apiUrl
+        ? apiUrl.replace(/\/$/, "")
+        : (typeof window !== "undefined" ? `${window.location.protocol}//${window.location.host}` : "");
+      // JWT token is injected by global main.jsx fetch interceptor automatically
+      // But we add it explicitly here as a safety fallback
+      const token = localStorage.getItem("gap_token") || "";
+      const headers = token ? { "Authorization": `Bearer ${token}` } : {};
+      const res = await fetch(`${b}/api/surveys/${activeId}/export-lite-${type}`, { headers });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const errCode = errData.code || "";
+        // Handle auth errors specifically
+        if (res.status === 401) {
+          if (errCode === "TOKEN_EXPIRED") {
+            setToast?.({ type: "error", msg: "⏰ Phiên đăng nhập hết hạn. Vui lòng tải lại trang và đăng nhập lại." });
+          } else {
+            setToast?.({ type: "error", msg: "🔒 Lỗi xác thực. Vui lòng đăng xuất và đăng nhập lại." });
+          }
+          return;
+        }
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `Lite_GAP_${survey.meta?.ref_no || "Report"}.${type}`;
       document.body.appendChild(a); a.click(); a.remove();
-      setToast?.({ type: "success", msg: `Đã xuất Lite Report (${type.toUpperCase()})!` });
+      window.URL.revokeObjectURL(url);
+      setToast?.({ type: "success", msg: `✅ Đã xuất Lite Report (${type.toUpperCase()}) thành công!` });
     } catch (err) {
       setToast?.({ type: "error", msg: "Lỗi xuất Lite: " + err.message });
     } finally { setExporting(false); }
@@ -576,18 +612,19 @@ export default function LiteGapAudit({ open, onClose, survey, setSurvey, apiUrl,
                 Bao gồm: Thông tin DN & Đoàn đánh giá · Kết quả GAP §4–§10 · Đánh giá hiện trường kèm hình ảnh
               </div>
               <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
-                <Btn v="orange" sz="lg" onClick={() => handleExportLite("docx")} loading={exporting} disabled={!survey._id}>
+                <Btn v="orange" sz="lg" onClick={() => handleExportLite("docx")} loading={exporting} disabled={exporting}>
                   📄 Tải báo cáo DOCX
                 </Btn>
-                <Btn v="amber" sz="lg" onClick={() => handleExportLite("html")} loading={exporting} disabled={!survey._id}>
+                <Btn v="amber" sz="lg" onClick={() => handleExportLite("html")} loading={exporting} disabled={exporting}>
                   🌐 Tải báo cáo HTML
                 </Btn>
               </div>
-              {!survey._id && (
-                <div style={{ marginTop: 16, fontSize: 13, color: C.red }}>
-                  ⚠ Cần lưu phiên khảo sát trước khi xuất báo cáo
-                </div>
-              )}
+              <div style={{ marginTop: 16, fontSize: 13, color: C.t2 }}>
+                {survey._id
+                  ? `✅ Phiên đã lưu (ID: ${String(survey._id).slice(-8)}...) — sẵn sàng xuất`
+                  : `💾 Nhấn xuất sẽ tự động lưu phiên trước (cần Mã khảo sát và Tên tổ chức)`
+                }
+              </div>
             </div>
           </div>
         )}

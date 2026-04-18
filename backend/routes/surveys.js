@@ -44,6 +44,73 @@ async function syncSurveyToJob(survey) {
   }
 }
 
+async function applyLiteFallbacks(survey) {
+  try {
+    const images = await Evidence.find({ surveyId: survey._id, type: "image", source: { $ne: "document" } }).lean();
+    const imagesByClauseId = {};
+    images.forEach(img => {
+      const c = img.context || {};
+      const clauseId = img.clauseId || c.clause;
+      if (clauseId) {
+        if (!imagesByClauseId[clauseId]) imagesByClauseId[clauseId] = [];
+        imagesByClauseId[clauseId].push(img);
+      }
+    });
+
+    survey.responses = survey.responses || {};
+    GAP_CHECKLIST.forEach(item => {
+       const resp = survey.responses[item.id] || {};
+       let currNote = resp.note || "";
+       const eviList = [ ...(imagesByClauseId[item.id] || []), ...(imagesByClauseId[item.clause] || []) ];
+       if (eviList.length > 0) {
+          const appended = eviList.map(e => e.note || e.originalName).filter(Boolean).join("\\n- ");
+          if (appended) currNote += (currNote ? "\\n- " : "") + appended;
+       }
+       if (!survey.responses[item.id]) survey.responses[item.id] = {};
+       survey.responses[item.id].note = currNote;
+    });
+
+    let siteItems = Array.isArray(survey.lite_site_assessments) ? [...survey.lite_site_assessments] : [];
+    if (siteItems.length === 0 && survey.site_assessments && survey.site_assessments.length > 0) {
+        survey.site_assessments.forEach(zone => {
+            let imgsHtml = "";
+            let imagesArray = [];
+            images.filter(img => img.context?.zone === zone.id).forEach(img => {
+               const imgPath = path.resolve(__dirname, "../uploads", img.path || `${img.surveyId}/${img.filename}`);
+               if (fs.existsSync(imgPath)) {
+                  const base64Str = fs.readFileSync(imgPath, { encoding: 'base64' });
+                  const base64 = "data:image/jpeg;base64," + base64Str;
+                  imgsHtml += `<img src="${base64}" />`;
+                  imagesArray.push(base64);
+               }
+            });
+            if (zone.notes || imagesArray.length > 0) {
+               siteItems.push({ area: zone.name, area_type: zone.zone_type || "Khu vực", status: zone.notes || "", risk: "", opportunity: "", images_html: imgsHtml, images: imagesArray });
+            }
+            (zone.equipment || []).forEach(eq => {
+               let eqImgsHtml = "";
+               let eqImagesArray = [];
+               images.filter(img => img.context?.equipment === eq.id).forEach(img => {
+                   const imgPath = path.resolve(__dirname, "../uploads", img.path || `${img.surveyId}/${img.filename}`);
+                   if (fs.existsSync(imgPath)) {
+                      const base64Str = fs.readFileSync(imgPath, { encoding: 'base64' });
+                      const base64 = "data:image/jpeg;base64," + base64Str;
+                      eqImgsHtml += `<img src="${base64}" />`;
+                      eqImagesArray.push(base64);
+                   }
+               });
+               if (eq.finding || eq.recommendation || eqImagesArray.length > 0) {
+                   siteItems.push({ area: eq.name, area_type: eq.type || "Thiết bị", status: eq.finding || "", risk: "", opportunity: eq.recommendation || "", images_html: eqImgsHtml, images: eqImagesArray });
+               }
+            });
+         });
+         survey.lite_site_assessments = siteItems;
+    }
+  } catch (err) {
+    console.error("[applyLiteFallbacks] Fallback parsing error:", err);
+  }
+}
+
 const router = express.Router();
 
 function mongoConnected() {
@@ -222,8 +289,8 @@ router.get("/:id/export-excel", requireMongo, async (req, res) => {
             imgNote: img.note || img.originalName || "" // Ghi chú của ảnh
           });
         });
-      } else if (note.length > 0 || rec.length > 0) {
-        // Không có ảnh nhưng có text
+      } else {
+        // Không có ảnh nhưng vẫn in ra để giữ lại tiêu đề khoản
         rowItems.push({
           type: 'clause',
           id: item.id,
@@ -325,8 +392,14 @@ router.post("/", requireMongo, async (req, res) => {
     if (!clientName) return res.status(400).json({ error: "client.name required" });
     const existing = await Survey.findOne({ "meta.ref_no": body.meta.ref_no }).maxTimeMS(15000);
     if (existing) return res.status(409).json({ error: "ref_no already exists", id: existing._id });
-    const survey = await Survey.create(body);
-    const surveyLean = survey.toObject ? survey.toObject() : survey;
+    // Bypass Mongoose deep casting for the same dot-notation drop bug in responses
+    body.createdAt = new Date();
+    body.updatedAt = body.createdAt;
+    const result = await Survey.collection.insertOne(body);
+    const surveyLean = await Survey.findById(result.insertedId).lean();
+    
+    // Create an instance solely for response fallback backwards compatibility if needed
+    const survey = new Survey(surveyLean);
     // Real-time Telegram notification hook (no await to prevent blocking)
     checkAndSendEvents(null, surveyLean);
     // Real-time Postgres synchronization
@@ -359,31 +432,18 @@ router.put("/:id", requireMongo, async (req, res) => {
     delete updateData.createdAt;
     delete updateData.updatedAt;
     delete updateData.__v;
+    updateData.updatedAt = new Date();
 
-    // Must use .save() so Mongoose accepts object keys containing dots (e.g. '9.3.1') inside Mixed schema
-    Object.assign(oldSurvey, updateData);
+    // Must use native MongoDB update to prevent Mongoose Mixed Schema from silently stripping 
+    // object keys that contain dots (e.g. "4.1.1" in responses). 
+    // MongoDB 5.0+ natively supports dotted keys in objects, but Mongoose still drops them during cast.
+    await Survey.collection.updateOne(
+      { _id: oldSurvey._id },
+      { $set: updateData }
+    );
     
-    // Explicitly reassign Nested arrays to trigger Mongoose reactivity safely
-    if (Array.isArray(updateData.travel_logs)) {
-      oldSurvey.travel_logs = updateData.travel_logs;
-      oldSurvey.markModified("travel_logs");
-    }
-    if (Array.isArray(updateData.hotel_logs)) {
-      oldSurvey.hotel_logs = updateData.hotel_logs;
-      oldSurvey.markModified("hotel_logs");
-    }
-
-    // Explicitly mark Mixed fields as modified before saving
-    if ("responses" in updateData) oldSurvey.markModified("responses");
-    if ("risk_assessments" in updateData) oldSurvey.markModified("risk_assessments");
-    if ("process_gaps" in updateData) oldSurvey.markModified("process_gaps");
-    if ("risk_items" in updateData) oldSurvey.markModified("risk_items");
-    if ("logistics_trips" in updateData) oldSurvey.markModified("logistics_trips");
-
-    await oldSurvey.save();
-    
-    // Convert to plain object for the hook & response
-    const surveyLean = oldSurvey.toObject();
+    // Convert to plain object for the hook & response directly from DB natively
+    const surveyLean = await Survey.findById(oldSurvey._id).lean();
 
     // Real-time Telegram notification hook
     checkAndSendEvents(originalSurveyLean, surveyLean);
@@ -452,13 +512,47 @@ router.delete("/:id", requireMongo, async (req, res) => {
   }
 });
 
+// GET /api/surveys/:id/export-docx — Full GAP Report (DOCX)
+router.get("/:id/export-docx", requireMongo, async (req, res) => {
+  try {
+    const survey = await Survey.findById(req.params.id).lean();
+    if (!survey) return res.status(404).json({ error: "Survey not found" });
+
+    // Fetch evidence images linked to this survey
+    const evidenceList = await Evidence.find({
+      surveyId: survey._id,
+      type: "image",
+      source: { $ne: "document" },
+    }).lean();
+
+    const { GAP_CHECKLIST } = require("../gap.constants");
+    const { generateGapReport } = require("../gap.generator");
+
+    const buffer = await generateGapReport(survey, evidenceList, GAP_CHECKLIST);
+
+    const refNo = (survey.meta?.ref_no || "GAP").replace(/[^A-Za-z0-9_\-]/g, "_");
+    const filename = `ISO50001_GAP_${refNo}.docx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+    res.send(buffer);
+  } catch (err) {
+    if (err.name === "CastError") return res.status(400).json({ error: "Invalid id" });
+    const msg = err.message || "";
+    console.error("[surveys export-docx]", err);
+    res.status(500).json({ error: msg || "Lỗi tạo báo cáo Full DOCX." });
+  }
+});
+
 router.get("/:id/export-lite-docx", requireMongo, async (req, res) => {
+
   try {
     const survey = await Survey.findById(req.params.id).lean();
     if (!survey) return res.status(404).json({ error: "Survey not found" });
 
     const { GAP_CHECKLIST } = require("../gap.constants");
     const { generateGapReportLite } = require("../gap.docx.lite.js");
+
+    await applyLiteFallbacks(survey);
 
     const customGaps = Array.isArray(survey.lite_custom_gaps) ? survey.lite_custom_gaps : [];
     const liteOverrides = survey.lite_overrides || {};
@@ -493,6 +587,9 @@ router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
     const d = survey;
     d.client = d.client || {};
     d.verifier = d.verifier || {};
+    
+    await applyLiteFallbacks(d);
+
     d.lite_site_assessments = Array.isArray(d.lite_site_assessments) ? d.lite_site_assessments : [];
     
     let auditors = Array.isArray(d.audit_plan?.auditors) && d.audit_plan.auditors.length > 0 ? d.audit_plan.auditors : [];
@@ -536,7 +633,7 @@ router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
 
     // GAP TABLE
     const { GAP_CHECKLIST } = require("../gap.constants");
-    const customGaps = Array.isArray(survey.lite_custom_gaps) ? survey.lite_custom_gaps : [];
+        const customGaps = Array.isArray(survey.lite_custom_gaps) ? survey.lite_custom_gaps : [];
     const liteOverrides = survey.lite_overrides || {};
     const customItems = customGaps.map(c => ({ id: c.id, clause: c.clause, title: c.title, isCustom: true }));
     const standardItems = GAP_CHECKLIST.filter(c => !liteOverrides[c.id]?.deleted).map(c => {
@@ -551,10 +648,10 @@ router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
     checklist.forEach((item, i) => {
       const resp = (d.responses || {})[item.id] || {};
       const sc = resp.score || 0;
-      const note = resp.note || "Chưa có thông tin";
+      const note = resp.note || "";
       const scColor = sc === 1 ? "#d32f2f" : sc === 2 ? "#ed6c02" : sc >= 4 ? "#2e7d32" : "#555";
       const clauseColor = item.isCustom ? "#9c27b0" : "#222";
-      gapRows += `<tr><td style="text-align:center">${i+1}</td><td style="text-align:center;font-weight:bold;color:${clauseColor}">${item.id||`CUS-${item.clause}`}</td><td contenteditable="true">${item.title}</td><td contenteditable="true">${note.replace(/\n/g, "<br/>")}</td><td contenteditable="true" style="text-align:center;font-weight:bold;color:${scColor}">${sc ? sc+"/5.0" : "—"}</td></tr>`;
+      gapRows += `<tr><td style="text-align:center">${i+1}</td><td style="text-align:center;font-weight:bold;color:${clauseColor}">${item.id||`CUS-${item.clause}`}</td><td contenteditable="true">${item.title}</td><td contenteditable="true">${note.replace(/\\n/g, "<br/>")}</td><td contenteditable="true" style="text-align:center;font-weight:bold;color:${scColor}">${sc ? sc+"/5.0" : "—"}</td></tr>`;
     });
     
     // RISKS
@@ -563,7 +660,7 @@ router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
     const siteItems = d.lite_site_assessments || [];
     
     siteItems.forEach((e) => {
-      let imgsHtml = "";
+      let imgsHtml = e.images_html || "";
       const eqImages = e.images || [];
       if (eqImages.length > 0) {
         eqImages.forEach(imgBase64 => {
@@ -717,7 +814,7 @@ router.get("/:id/export-lite-html", requireMongo, async (req, res) => {
   }
 });
 
-module.exports = router;
+// NOTE: module.exports moved to end of file — ALL routes must be defined before export
 router.get("/:id/export-html", requireMongo, async (req, res) => {
   try {
     const survey = await Survey.findById(req.params.id).lean();
@@ -1060,3 +1157,5 @@ router.get("/:id/export-html", requireMongo, async (req, res) => {
     res.status(500).json({ error: msg || "Lỗi tạo báo cáo HTML." });
   }
 });
+
+module.exports = router;

@@ -16,13 +16,13 @@ services:
     container_name: iso50001-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-H9M2Bexj5pg}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER env var is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD env var is required}
       POSTGRES_DB: ${POSTGRES_DB:-iso50001gap}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d iso50001gap"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-iso50001gap}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,11 +38,15 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb://mongo:27017/iso50001gap
       POSTGRES_HOST: iso50001-postgres
-      POSTGRES_USER: ${POSTGRES_USER:-admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-H9M2Bexj5pg}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER env var is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD env var is required}
       POSTGRES_DB: ${POSTGRES_DB:-iso50001gap}
-      JWT_SECRET: ${JWT_SECRET:-gap50001_prod_jwt_2026_SecR3tK3y_ISO27001}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET env var is required}
       CORS_ORIGIN: ${CORS_ORIGIN:-"https://103.81.84.233:8888,http://103.81.84.233:8888,http://localhost:8888"}
+      # Admin seed credentials (used only on first boot if no users exist)
+      SEED_ADMIN_USER: ${SEED_ADMIN_USER:-}
+      SEED_ADMIN_PASS: ${SEED_ADMIN_PASS:-}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
     depends_on:
       mongo:
         condition: service_healthy

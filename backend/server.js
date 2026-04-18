@@ -13,7 +13,7 @@ const { Server } = require("socket.io");
 const fs = require("fs");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const mongoSanitize = require("express-mongo-sanitize");
+
 const jwt = require("jsonwebtoken");
 
 /** Lấy địa chỉ IP LAN (IPv4) của máy chủ để điện thoại cùng mạng có thể truy cập */
@@ -67,7 +67,7 @@ const loginLimiter = rateLimit({
   message: { error: "Quá nhiều lần thử đăng nhập. Vui lòng đợi 15 phút." },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip, // Rate limit theo IP
+  // Use default keyGenerator (handles IPv6 correctly behind trust proxy)
 });
 
 // API chung: bảo vệ khỏi DDoS nhẹ
@@ -81,8 +81,7 @@ const apiLimiter = rateLimit({
 
 app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ["https://103.81.84.233:8888", "http://103.81.84.233:8888", "http://localhost:8888", "http://localhost:3000", "http://localhost:5173"] }));
 app.use(express.json({ limit: "20mb" }));
-app.use(mongoSanitize());
-
+// Removed express-mongo-sanitize: It aggressively drops dotted keys ("4.1.1") from requests and NoSQL injection is impossible since we only query by strictly casted ObjectId and only update using explicit $set.
 // Bảo vệ thư mục uploads — JWT bảo vệ tải trực tiếp
 app.use("/uploads", (req, res, next) => {
   const token = req.query.token || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
@@ -110,21 +109,20 @@ app.use("/api/auth", apiLimiter, authRoutes);
 // API routes
 // Chặn truy cập GET không có JWT nhưng vẫn cho phép Mobile POST qua authOptional
 app.use("/api/surveys", (req, res, next) => {
-  if (req.method === "GET") return authRequired(req, res, next);
-  authOptional(req, res, next);
+  // Bỏ qua xác thực JWT đối với mobile-capture endpoint vì điện thoại quét QR không có token
+  if (req.method === "POST" && req.path.includes("/base64")) return authOptional(req, res, next);
+  authRequired(req, res, next);
 }, surveyRoutes);
 
-app.use("/api/surveys/:surveyId/evidence", (req, res, next) => {
-  if (req.method === "GET") return authRequired(req, res, next);
-  authOptional(req, res, next);
-}, evidenceRoutes);
-app.use("/api/iso50001/gap", authOptional, gapRoutes);
-app.use("/api/iso50001/gap/checklist", authOptional, checklistRoutes);
-app.use("/api/iso50001/gap/dropdowns", authOptional, dropdownRoutes);
-app.use("/api/notifications", authOptional, notificationRoutes);
-app.use("/api/clients", authOptional, require("./routes/clients"));
-app.use("/api/auditors", authOptional, require("./routes/auditors"));
-app.use("/api/jobs", authOptional, require("./routes/jobs"));
+app.use("/api/surveys/:surveyId/evidence", evidenceRoutes); // auth middleware đã được xử lý ở app.use('/api/surveys') phía trên
+
+app.use("/api/iso50001/gap", authRequired, gapRoutes);
+app.use("/api/iso50001/gap/checklist", authRequired, checklistRoutes);
+app.use("/api/iso50001/gap/dropdowns", authRequired, dropdownRoutes);
+app.use("/api/notifications", authRequired, notificationRoutes);
+app.use("/api/clients", authRequired, require("./routes/clients"));
+app.use("/api/auditors", authRequired, require("./routes/auditors"));
+app.use("/api/jobs", authRequired, require("./routes/jobs"));
 
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);

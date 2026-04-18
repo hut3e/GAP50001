@@ -3,7 +3,13 @@
  */
 const jwt = require("jsonwebtoken");
 
-const JWT_SECRET = process.env.JWT_SECRET || "gap50001_sec_key_2026_!@#$%";
+// SECURITY: JWT_SECRET MUST be set via environment variable in production
+// Never commit real secrets to source code
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  console.error("FATAL: JWT_SECRET environment variable is not set in production! Refusing to start.");
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET || "dev_only_insecure_placeholder_do_not_use_in_prod";
 const JWT_EXPIRES = process.env.JWT_EXPIRES || "24h";
 
 /** Tạo JWT token */
@@ -24,10 +30,11 @@ function authRequired(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
-  } catch (err) {
-    if (err.name === "TokenExpiredError") return res.status(401).json({ error: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.", code: "TOKEN_EXPIRED" });
-    return res.status(401).json({ error: "Token không hợp lệ.", code: "INVALID_TOKEN" });
-  }
+    } catch (err) {
+      if (err.name === "TokenExpiredError") return res.status(401).json({ error: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.", code: "TOKEN_EXPIRED" });
+      console.error("[AUTH FAIL]", req.method, req.originalUrl, "Token:", token, "Error:", err.message);
+      return res.status(401).json({ error: "Token không hợp lệ.", code: "INVALID_TOKEN" });
+    }
 }
 
 /** Middleware: Yêu cầu role admin */

@@ -10,5 +10,7 @@ backend/test_*.js
 backend/test_*.txt
 *.log
 .env
+.env.local
 *.expect
 *.tar.gz
+*.sh

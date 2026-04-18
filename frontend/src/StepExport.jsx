@@ -67,22 +67,33 @@ export default function StepExport({ survey, surveyId, onExport, onSave, loading
   }));
 
   const canExport = !!survey.meta?.ref_no && !!survey.client?.name;
+  // Helper: get auth header from localStorage
+  const authHeader = () => {
+    const token = localStorage.getItem("gap_token") || "";
+    return token ? { "Authorization": `Bearer ${token}` } : {};
+  };
   const actions = survey.action_plan || [];
 
   const doExport = async (type) => {
+    if (!canExport) {
+      setToast?.({ type: "error", msg: "Vui lòng nhập Mã khảo sát và Tên tổ chức trước khi xuất." });
+      return;
+    }
+    // Always auto-save first to ensure latest data is in DB
     let activeId = survey._id || surveyId;
-    if (!activeId && onSave) {
-      activeId = await onSave();
+    if (onSave) {
+      const savedId = await onSave();
+      if (savedId) activeId = savedId;
     }
     if (!activeId) {
-      setToast?.({ type: "error", msg: `Phiên khảo sát cần "Lưu phiên" trước khi Export.` });
+      setToast?.({ type: "error", msg: "Không thể lưu phiên. Kiểm tra Mã khảo sát và Tên tổ chức." });
       return;
     }
     const setLoadState = type === "excel" ? setExcelLoading : type === "html" ? setHtmlLoading : setLiteLoading;
     setLoadState(true);
     setConfirmModal({ open: false, type: "" });
     try {
-      const base = apiUrl ? apiUrl.replace(/\/$/, "") : "";
+      const b = apiUrl ? apiUrl.replace(/\/$/, "") : (typeof window !== "undefined" ? `${window.location.protocol}//${window.location.host}` : "");
       const paths = {
         "docx": `/api/surveys/${activeId}/export-docx`,
         "excel": `/api/surveys/${activeId}/export-excel`,
@@ -90,8 +101,11 @@ export default function StepExport({ survey, surveyId, onExport, onSave, loading
         "lite_docx": `/api/surveys/${activeId}/export-lite-docx`,
         "lite_html": `/api/surveys/${activeId}/export-lite-html`,
       };
-      const res = await fetch(`${base}${paths[type] || paths["docx"]}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(()=>"")}`);
+      const res = await fetch(`${b}${paths[type] || paths["docx"]}`, { headers: authHeader() });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -99,6 +113,7 @@ export default function StepExport({ survey, surveyId, onExport, onSave, loading
       const ext = type.includes("html") ? "html" : type.includes("excel") ? "xlsx" : "docx";
       a.download = `GAP_${survey.meta?.ref_no || "Report"}_${type}.${ext}`;
       document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
       setToast?.({ type: "success", msg: `✅ Đã xuất ${type.toUpperCase()} thành công!` });
     } catch (err) {
       setToast?.({ type: "error", msg: `Lỗi xuất ${type}: ${err.message}` });
@@ -271,7 +286,7 @@ export default function StepExport({ survey, surveyId, onExport, onSave, loading
             desc="Báo cáo đầy đủ, chuyên nghiệp dùng cho in ấn và trình duyệt lãnh đạo."
             color={C.blue} glow={C.blue}
             features={["Toàn bộ điều khoản §4–§10", "Biểu đồ & Ma trận rủi ro", "Action Plan chi tiết"]}
-            btnLabel="Xuất bản DOCX" onClick={() => onExport()} loading={loading} disabled={!canExport}
+            btnLabel="Xuất bản DOCX" onClick={() => setConfirmModal({ open: true, type: "docx" })} loading={loading} disabled={!canExport}
           />
 
           <ExportPlatformCard

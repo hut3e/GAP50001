@@ -693,10 +693,12 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
     }
     setSaving(true); setToast(null);
     try {
+      const authTok = localStorage.getItem("gap_token") || "";
+      const authHdr = authTok ? { "Authorization": `Bearer ${authTok}` } : {};
       const url = surveyId ? `${b}/api/surveys/${surveyId}` : `${b}/api/surveys`;
       let res = await fetch(url, {
         method: surveyId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHdr },
         body: JSON.stringify(survey),
       });
       let e = await res.json().catch(() => ({}));
@@ -706,7 +708,7 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
         setSurveyId(e.id);
         res = await fetch(`${b}/api/surveys/${e.id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHdr },
           body: JSON.stringify(survey),
         });
         e = await res.json().catch(() => ({}));
@@ -719,7 +721,10 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
         }
         throw new Error(e.error || `HTTP ${res.status}`);
       }
-      if (e._id) setSurveyId(e._id);
+      if (e._id) {
+        setSurveyId(e._id);
+        setSurvey(prev => ({ ...prev, _id: e._id }));
+      }
       setToast({ type: "success", msg: "✓ Đã lưu phiên khảo sát vào DB iso50001gap." });
       return e._id || surveyId;
     } catch (err) {
@@ -742,7 +747,13 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
         ? `${window.location.protocol}//${window.location.host}`.replace(/\/$/, "")
         : "";
     const b = explicit || fallback;
-    const res = await fetch(`${b}/api/surveys?limit=100`);
+    const authTok = localStorage.getItem("gap_token") || "";
+    const authHdr = authTok ? { "Authorization": `Bearer ${authTok}` } : {};
+    const res = await fetch(`${b}/api/surveys?limit=100`, { headers: authHdr });
+    if (res.status === 401) {
+      setToast({ type: "error", msg: "Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại." });
+      return [];
+    }
     if (res.status === 503) {
       setToast({ type: "error", msg: "MongoDB chưa kết nối. Khởi động MongoDB và backend để tải danh sách phiên." });
       return [];
@@ -758,7 +769,9 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
         ? `${window.location.protocol}//${window.location.host}`.replace(/\/$/, "")
         : "";
     const b = explicit || fallback;
-    const res = await fetch(`${b}/api/surveys/${id}`);
+    const authTok = localStorage.getItem("gap_token") || "";
+    const authHdr = authTok ? { "Authorization": `Bearer ${authTok}` } : {};
+    const res = await fetch(`${b}/api/surveys/${id}`, { headers: authHdr });
     if (res.status === 503) {
       setToast({ type: "error", msg: "MongoDB chưa kết nối. Khởi động MongoDB và backend." });
       throw new Error("MongoDB chưa kết nối");
@@ -804,6 +817,7 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
       iso_standards_registry: Array.isArray(data.iso_standards_registry) && data.iso_standards_registry.length > 0 ? data.iso_standards_registry : INIT_SURVEY.iso_standards_registry,
       certification_roadmap: Array.isArray(data.certification_roadmap) && data.certification_roadmap.length > 0 ? data.certification_roadmap : INIT_SURVEY.certification_roadmap,
       logistics_trips: Array.isArray(data.logistics_trips) ? data.logistics_trips : [],
+      _id: data._id, // Ensure _id is always synced into survey state for Lite export
     };
     setSurvey(normalized);
     setSurveyId(data._id);
@@ -821,12 +835,13 @@ export default function GapSurveyApp({ apiUrl: initApi = "http://localhost:5002"
         payload.kanban_status = "completed";
         setSurvey(prev => ({ ...prev, kanban_status: "completed" }));
         if (surveyId) {
-          const explicit = base(apiUrl);
+        const explicit = base(apiUrl);
           const fallback = typeof window !== "undefined" ? `${window.location.protocol}//${window.location.host}`.replace(/\/$/, "") : "";
           const b = explicit || fallback;
+          const authTok2 = localStorage.getItem("gap_token") || "";
           await fetch(`${b}/api/surveys/${surveyId}`, {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...(authTok2 ? { "Authorization": `Bearer ${authTok2}` } : {}) },
             body: JSON.stringify(payload),
           }).catch(()=>{});
         }

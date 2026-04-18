@@ -92,14 +92,14 @@ function buildGapTable(d, checklist) {
   checklist.forEach((item, i) => {
     const resp = d.responses[item.id] || {};
     const sc = resp.score || 0;
-    const note = resp.note || "Chưa có thông tin"; // In Lite it saves as 'note'
+    const note = resp.note || ""; // In Lite it saves as 'note'
     
     rows.push(new TableRow({ children:[
       new TableCell({ width:{size:400}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(String(i+1),{sz:24,c:true})] }),
       new TableCell({ width:{size:1200}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(item.id||`CUS-${item.clause}`,{sz:24,bold:true,c:true,col:item.isCustom?C.violet:C.black})] }),
       new TableCell({ width:{size:4000}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(item.title,{sz:24})] }),
       new TableCell({ width:{size:2500}, borders:cb(), shading:sh(i%2?C.white:C.ash), margins:CMs, children:[P(note,{sz:24})] }),
-      new TableCell({ width:{size:1260}, borders:cb(), shading:sh(sc===1?`${C.red}18`:sc===2?`${C.orange}18`:sc>=4?`${C.teal}18`:C.ash), margins:CMs, children:[P(sc?`${sc}/5.0`:"—",{sz:24,c:true,bold:true,col:scoreColor(sc)})] })
+      new TableCell({ width:{size:1260}, borders:cb(), shading:sh(scoreBg(sc)), margins:CMs, children:[P(sc?`${sc}/5.0`:"—",{sz:24,c:true,bold:true,col:scoreColor(sc)})] })
     ]}));
   });
 

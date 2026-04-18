@@ -54,22 +54,34 @@ function validatePasswordStrength(password) {
 
 // ──────────────────────────────────────────────────────────
 // SEED admin mặc định khi khởi động (chỉ tạo nếu chưa có user nào)
+// SECURITY: Set env vars SEED_ADMIN_USER, SEED_ADMIN_PASS, SEED_ADMIN_EMAIL
+// Never hardcode credentials in source code
 // ──────────────────────────────────────────────────────────
 async function seedDefaultAdmin() {
   try {
     const count = await User.countDocuments();
     if (count === 0) {
-      const hash = await hashPassword("ToanAntigravity2026!&");
+      const adminUser = process.env.SEED_ADMIN_USER;
+      const adminPass = process.env.SEED_ADMIN_PASS;
+      const adminEmail = process.env.SEED_ADMIN_EMAIL || "";
+
+      if (!adminUser || !adminPass) {
+        console.warn("[Auth] SEED_ADMIN_USER / SEED_ADMIN_PASS not set — skipping default admin creation.");
+        console.warn("[Auth] Set these env vars to create initial admin on first boot.");
+        return;
+      }
+
+      const hash = await hashPassword(adminPass);
       await User.create({
-        username: "hut3e",
+        username: adminUser,
         password: hash,
         displayName: "System Administrator",
-        email: "toanvn85@gmail.com",
+        email: adminEmail,
         role: "admin",
         isActive: true,
         createdBy: "system",
       });
-      console.log("✅ Default admin created: hut3e (SHA-256 + bcrypt)");
+      console.log(`✅ Default admin created: ${adminUser} (SHA-256 + bcrypt)`);
     }
   } catch (err) {
     console.error("[Auth] Seed admin error:", err.message);
