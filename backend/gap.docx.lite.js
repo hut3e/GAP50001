@@ -1,7 +1,7 @@
 const { Document, Packer, TableOfContents, Table, TableRow, TableCell, WidthType, TableLayoutType, Paragraph, TextRun, BorderStyle, ImageRun } = require("docx");
 const fs = require("fs");
 const path = require("path");
-const { DOC_STYLES, DOC_NUMBERING, DOC_PAGE, mkHeader, mkFooter, C, cb, sh, CM, CMs, TW, P, H1, H2, SP, PBR, TH, scoreColor } = require("./gap.docx.helpers");
+const { DOC_STYLES, DOC_NUMBERING, DOC_PAGE, mkHeader, mkFooter, C, cb, sh, CM, CMs, TW, P, H1, H2, SP, PBR, TH, scoreColor, scoreBg } = require("./gap.docx.helpers");
 
 function applyDefaults(data) {
   const d = JSON.parse(JSON.stringify(data || {}));
