@@ -38,7 +38,54 @@ const AREA_TYPES = [
   "Khác",
 ];
 
-// ── ISO 50001:2018 §4-§10 (tên đầy đủ theo tiêu chuẩn) ──────────
+// ═══════════════════════════════════════════════════════════════
+// DASHBOARD PALETTE — Thiết kế chuyên nghiệp, tương phản cao
+// ═══════════════════════════════════════════════════════════════
+
+// Nền chiều sâu — 3 lớp rõ rệt
+const DB = {
+  bg0:   "#060e1a",   // nền toàn cục (tối nhất)
+  bg1:   "#0a1628",   // nền section
+  bg2:   "#0e1f38",   // nền card
+  bg3:   "#122542",   // nền header card
+  border:"rgba(99,179,237,0.18)",
+  glow:  "rgba(99,179,237,0.08)",
+};
+
+// 7 màu riêng biệt cho §4→§10 — đủ tương phản, không trùng lặp
+const CLAUSE_COLORS = {
+  "4":  { main:"#38bdf8", glow:"rgba(56,189,248,.18)", name:"Sky Blue"    },  // §4  Bối cảnh
+  "5":  { main:"#818cf8", glow:"rgba(129,140,248,.18)", name:"Indigo"      },  // §5  Lãnh đạo
+  "6":  { main:"#34d399", glow:"rgba(52,211,153,.18)", name:"Emerald"     },  // §6  Hoạch định
+  "7":  { main:"#fb923c", glow:"rgba(251,146,60,.18)", name:"Orange"      },  // §7  Hỗ trợ
+  "8":  { main:"#f472b6", glow:"rgba(244,114,182,.18)", name:"Pink"        },  // §8  Vận hành
+  "9":  { main:"#facc15", glow:"rgba(250,204,21,.18)", name:"Yellow"      },  // §9  Đánh giá
+  "10": { main:"#a78bfa", glow:"rgba(167,139,250,.18)", name:"Violet"      },  // §10 Cải tiến
+};
+
+// Màu điểm số — semantic rõ ràng (0=chưa đánh giá → 5=hoàn hảo)
+const SCORE_PAL = [
+  { main:"#64748b", bg:"rgba(100,116,139,.12)", border:"rgba(100,116,139,.3)", label:"Chưa đánh giá"    },  // 0
+  { main:"#ef4444", bg:"rgba(239,68,68,.12)",   border:"rgba(239,68,68,.3)",   label:"Không đáp ứng"    },  // 1
+  { main:"#f97316", bg:"rgba(249,115,22,.12)",  border:"rgba(249,115,22,.3)",  label:"Đáp ứng một phần nhỏ" }, // 2
+  { main:"#eab308", bg:"rgba(234,179,8,.12)",   border:"rgba(234,179,8,.3)",   label:"Đáp ứng một phần" },  // 3
+  { main:"#22c55e", bg:"rgba(34,197,94,.12)",   border:"rgba(34,197,94,.3)",   label:"Cơ bản đáp ứng"   },  // 4
+  { main:"#06b6d4", bg:"rgba(6,182,212,.12)",   border:"rgba(6,182,212,.3)",   label:"Đáp ứng đầy đủ"   },  // 5
+];
+
+// KPI card colors — 8 màu phân biệt rõ
+const KPI_PAL = [
+  "#60a5fa",   // 0: Tổng   — Blue
+  "#2dd4bf",   // 1: Đã đánh giá — Teal
+  "#fb923c",   // 2: Chưa  — Orange
+  "#c084fc",   // 3: Tỷ lệ — Purple
+  null,        // 4: Điểm TB — dynamic (kpiCol)
+  "#4ade80",   // 5: Max   — Green
+  "#f87171",   // 6: Min   — Red
+  null,        // 7: Xếp loại — dynamic (kpiCol)
+];
+
+// ISO 50001:2018 §4-§10 tên đầy đủ
 const CLAUSE_FULL_NAMES = {
   "4":  "Bối cảnh của tổ chức",
   "5":  "Lãnh đạo",
@@ -49,206 +96,272 @@ const CLAUSE_FULL_NAMES = {
   "10": "Cải tiến",
 };
 
-// Đồng bộ với LITE_SCORES ở trên (0=chưa đánh giá, 1-5 = mức độ)
-const SC_LBL_FULL = [
-  "Chưa đánh giá",       // 0
-  "Không đáp ứng",       // 1
-  "Đáp ứng một phần nhỏ",// 2
-  "Đáp ứng một phần",    // 3
-  "Cơ bản đáp ứng",      // 4
-  "Đáp ứng đầy đủ",      // 5
-];
+// ── Helper: tiêu đề section ───────────────────────────────────────
+function SectionTitle({ icon, title, sub }) {
+  return (
+    <div style={{ marginBottom:16 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <span style={{ fontSize:20 }}>{icon}</span>
+        <span style={{ fontSize:15, fontWeight:800, color:"#e2f0ff", letterSpacing:"0.03em" }}>{title}</span>
+      </div>
+      {sub && <div style={{ fontSize:10, color:"#7ea8cc", marginTop:3, marginLeft:30, opacity:.85 }}>{sub}</div>}
+    </div>
+  );
+}
 
-// ── DashboardPanel ────────────────────────────────────────────────
-// Props nhận trực tiếp từ state → reactive realtime khi user cập nhật điểm
+// ── DashboardPanel (thiết kế lại hoàn toàn) ─────────────────────
 function DashboardPanel({ checklist, resp, clauseGroups }) {
-  // --- Core stats (chỉ tính tiêu chí đã đánh giá điểm > 0) ---
+
+  // ── Core statistics ───────────────────────────────────────────
   const allScored  = checklist.filter(i => (resp[i.id]?.score || 0) > 0);
   const notScored  = checklist.length - allScored.length;
   const totalScore = allScored.reduce((a, i) => a + (resp[i.id]?.score || 0), 0);
-  const avgScore   = allScored.length ? (totalScore / allScored.length) : 0;
+  const avgScore   = allScored.length ? totalScore / allScored.length : 0;
   const maxScore   = allScored.length ? Math.max(...allScored.map(i => resp[i.id]?.score || 0)) : 0;
   const minScore   = allScored.length ? Math.min(...allScored.map(i => resp[i.id]?.score || 0)) : 0;
-  const pctDone    = checklist.length > 0 ? Math.round(allScored.length / checklist.length * 100) : 0;
-  const kpiLabel   = avgScore >= 4.5 ? "XUẤT SẮC" : avgScore >= 3.5 ? "TỐT"
-                   : avgScore >= 2.5 ? "TRUNG BÌNH" : avgScore > 0 ? "YẾU" : "—";
-  const kpiCol     = avgScore >= 4 ? "#0d9488" : avgScore >= 3 ? "#059669"
-                   : avgScore >= 2 ? "#d97706" : avgScore > 0 ? "#dc2626" : "#718096";
+  const pctDone    = checklist.length  > 0 ? Math.round(allScored.length / checklist.length * 100) : 0;
 
-  // --- Clause stats (§4-§10, theo ISO 50001:2018) ---
-  // Chú ý: clauseGroups được tính từ checklist (đã bao gồm tiêu chí tùy chỉnh)
+  // Xếp loại & màu tổng hợp
+  const kpiLabel = avgScore >= 4.5 ? "XUẤT SẮC" : avgScore >= 3.5 ? "KHÁ TỐT"
+                 : avgScore >= 2.5 ? "TRUNG BÌNH" : avgScore > 0 ? "CẦN CẢI THIỆN" : "—";
+  const kpiCol   = avgScore >= 4.5 ? "#06b6d4" : avgScore >= 3.5 ? "#22c55e"
+                 : avgScore >= 2.5 ? "#eab308"  : avgScore > 0    ? "#ef4444" : "#64748b";
+  const kpiGlow  = avgScore >= 4.5 ? "rgba(6,182,212,.25)" : avgScore >= 3.5 ? "rgba(34,197,94,.25)"
+                 : avgScore >= 2.5 ? "rgba(234,179,8,.25)"  : avgScore > 0    ? "rgba(239,68,68,.25)" : "transparent";
+
+  // ── Clause stats ──────────────────────────────────────────────
   const clauseStats = CLAUSE_KEYS.map(clause => {
     const items  = clauseGroups[clause] || [];
     const scored = items.filter(i => (resp[i.id]?.score || 0) > 0);
-    const avg    = scored.length
-      ? scored.reduce((a, i) => a + (resp[i.id]?.score || 0), 0) / scored.length : 0;
-    return {
-      clause,
-      name:   CLAUSE_FULL_NAMES[clause] || ("Điều khoản " + clause),
-      total:  items.length,
-      scored: scored.length,
-      avg,
-    };
+    const avg    = scored.length ? scored.reduce((a, i) => a + (resp[i.id]?.score || 0), 0) / scored.length : 0;
+    return { clause, name: CLAUSE_FULL_NAMES[clause] || clause, total: items.length, scored: scored.length, avg };
   }).filter(s => s.total > 0);
 
-  // --- Score distribution (0=chưa đánh giá, 1-5) ---
+  // ── Score distribution ────────────────────────────────────────
   const scoreDist = [0,1,2,3,4,5].map(s => ({
-    score: s,
-    count: s === 0
-      ? notScored   // điểm 0 = chưa đánh giá
-      : checklist.filter(i => (resp[i.id]?.score || 0) === s).length,
-    label: SC_LBL_FULL[s],
-    col:   SC_COL[s],
-    bg:    SC_BG[s],
+    ...SCORE_PAL[s], score: s,
+    count: s === 0 ? notScored : checklist.filter(i => (resp[i.id]?.score || 0) === s).length,
   }));
-  // Tổng cho Donut chỉ tính 1-5 (để donut = phần đã đánh giá)
   const donutDist  = scoreDist.filter(d => d.score > 0);
   const donutTotal = donutDist.reduce((a, d) => a + d.count, 0);
 
-  // --- SVG: Bar Chart ---
-  const BAR_W = 480, BAR_H = 200, BAR_PAD = 40, BAR_GAP = 8;
-  const barCount = clauseStats.length;
-  const barW = barCount > 0 ? Math.floor((BAR_W - BAR_PAD*2 - BAR_GAP*(barCount-1)) / barCount) : 60;
+  // ── Bar chart dims ────────────────────────────────────────────
+  const BW=480, BH=200, BP=44, GAP=10;
+  const bCount = clauseStats.length;
+  const bW = bCount > 0 ? Math.floor((BW - BP*2 - GAP*(bCount-1)) / bCount) : 60;
 
-  // --- SVG: Donut Chart ---
-  const DONUT_R=70, DONUT_CX=90, DONUT_CY=90;
-  let startAngle = -Math.PI / 2;
+  // ── Donut ─────────────────────────────────────────────────────
+  const DR=72, DCX=92, DCY=92;
+  let sa = -Math.PI/2;
   const donutSegs = donutDist.filter(d => d.count > 0).map(d => {
-    const angle = donutTotal > 0 ? (d.count / donutTotal) * 2 * Math.PI : 0;
-    const x1 = DONUT_CX + DONUT_R * Math.cos(startAngle);
-    const y1 = DONUT_CY + DONUT_R * Math.sin(startAngle);
-    startAngle += angle;
-    const x2 = DONUT_CX + DONUT_R * Math.cos(startAngle);
-    const y2 = DONUT_CY + DONUT_R * Math.sin(startAngle);
-    return { ...d, path: `M${DONUT_CX},${DONUT_CY} L${x1.toFixed(1)},${y1.toFixed(1)} A${DONUT_R},${DONUT_R} 0 ${angle>Math.PI?1:0} 1 ${x2.toFixed(1)},${y2.toFixed(1)} Z` };
+    const angle = donutTotal > 0 ? d.count/donutTotal * 2*Math.PI : 0;
+    const x1=DCX+DR*Math.cos(sa), y1=DCY+DR*Math.sin(sa);
+    sa += angle;
+    const x2=DCX+DR*Math.cos(sa), y2=DCY+DR*Math.sin(sa);
+    return { ...d, path:`M${DCX},${DCY} L${x1.toFixed(1)},${y1.toFixed(1)} A${DR},${DR} 0 ${angle>Math.PI?1:0} 1 ${x2.toFixed(1)},${y2.toFixed(1)} Z` };
   });
 
-  // --- SVG: Radar Chart ---
-  const RAD=90, CX=110, CY=110, N=clauseStats.length;
-  const getRadarPt = (idx, val) => {
-    const angle = (2 * Math.PI * idx / N) - Math.PI / 2;
-    return { x: CX + RAD * val * Math.cos(angle), y: CY + RAD * val * Math.sin(angle) };
+  // ── Radar ─────────────────────────────────────────────────────
+  const RR=88, RCX=110, RCY=110, RN=clauseStats.length;
+  const rPt = (idx, v) => {
+    const a = 2*Math.PI*idx/RN - Math.PI/2;
+    return { x: RCX+RR*v*Math.cos(a), y: RCY+RR*v*Math.sin(a) };
   };
-  const radarPoints = clauseStats.map((s, i) => getRadarPt(i, s.avg / 5));
-  const radarPath   = radarPoints.length >= 3
-    ? radarPoints.map((p, i) => `${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ") + " Z" : "";
-  const gridLevels  = [0.2, 0.4, 0.6, 0.8, 1.0];
-  const labelPts    = clauseStats.map((s, i) => { const p = getRadarPt(i, 1.24); return { ...p, label: `§${s.clause}` }; });
+  const rPts    = clauseStats.map((s,i) => rPt(i, s.avg/5));
+  const rPath   = rPts.length >= 3 ? rPts.map((p,i) => `${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")+" Z" : "";
+  const rLabels = clauseStats.map((s,i) => { const p=rPt(i,1.26); return {...p, label:`§${s.clause}`, col:CLAUSE_COLORS[s.clause]?.main||"#7dd3fc"}; });
+
+  // ── Shared card style ─────────────────────────────────────────
+  const card = (extra={}) => ({
+    background: DB.bg2, borderRadius:16, border:`1px solid ${DB.border}`,
+    boxShadow: `0 4px 24px ${DB.glow}`, padding:22, ...extra,
+  });
 
   return (
-    <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", flexDirection:"column", gap:20 }}>
+    <div style={{ maxWidth:1140, margin:"0 auto", display:"flex", flexDirection:"column", gap:22, fontFamily:"'Inter',sans-serif" }}>
 
-      {/* ─ KPI Cards ─ */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(148px,1fr))", gap:12 }}>
-        {[
-          { icon:"📋", label:"Tổng chỉ mục đánh giá", val: checklist.length,           col:"#60a5fa",
-            tip:"Gồm chỉ mục chuẩn ISO 50001:2018 + chỉ mục tùy chỉnh bổ sung" },
-          { icon:"✅", label:"Đã đánh giá",       val: allScored.length,               col:"#2dd4bf",
-            tip:"Tiêu chí đã nhập điểm 1–5" },
-          { icon:"⏳", label:"Chưa đánh giá",     val: notScored,                      col:"#f59e0b",
-            tip:"Tiêu chí chưa nhập điểm (score=0)" },
-          { icon:"📈", label:"Tỷ lệ hoàn thành",  val: pctDone+"%",                    col:"#7c3aed",
-            tip:"Đã đánh giá / Tổng × 100%" },
-          { icon:"⭐", label:"Điểm TB",            val: avgScore>0?avgScore.toFixed(2)+"/5":"—", col:kpiCol,
-            tip:"Trung bình điểm trên các tiêu chí ĐÃ đánh giá" },
-          { icon:"🔝", label:"Điểm cao nhất",      val: maxScore>0?maxScore+"/5":"—",  col:"#059669",
-            tip:"Điểm cao nhất trong các tiêu chí đã đánh giá" },
-          { icon:"🔻", label:"Điểm thấp nhất",     val: minScore>0?minScore+"/5":"—",  col:"#dc2626",
-            tip:"Điểm thấp nhất trong các tiêu chí đã đánh giá" },
-          { icon:"🏆", label:"Xếp loại",           val: kpiLabel,                      col:kpiCol,
-            tip:"≥4.5=Xuất sắc | ≥3.5=Tốt | ≥2.5=Trung bình | <2.5=Yếu" },
-        ].map(k => (
-          <div key={k.label} title={k.tip}
-            style={{ background:`${k.col}12`, border:`1.5px solid ${k.col}35`, borderRadius:12, padding:"14px 10px", textAlign:"center", cursor:"default" }}>
-            <div style={{ fontSize:22, marginBottom:6 }}>{k.icon}</div>
-            <div style={{ fontSize:k.label==="Xếp loại"?14:22, fontWeight:800, color:k.col, fontFamily:"'Rajdhani',sans-serif", lineHeight:1.1 }}>{k.val}</div>
-            <div style={{ fontSize:10, color:"#7dd3fc", marginTop:4, textTransform:"uppercase", letterSpacing:"0.04em" }}>{k.label}</div>
-          </div>
-        ))}
-      </div>
+      {/* ══ A. KPI CARDS ══════════════════════════════════════════ */}
+      <section>
+        <SectionTitle icon="📡" title="CHỈ SỐ TỔNG QUAN (KPI)"
+          sub="Tự động cập nhật realtime khi nhập/sửa điểm đánh giá"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:14 }}>
+          {[
+            { icon:"📋", label:"Tổng chỉ mục đánh giá", val: checklist.length,                            palIdx:0 },
+            { icon:"✅", label:"Đã đánh giá",             val: allScored.length,                            palIdx:1 },
+            { icon:"⏳", label:"Chưa đánh giá",           val: notScored,                                   palIdx:2 },
+            { icon:"📈", label:"Tỷ lệ hoàn thành",        val: pctDone+"%",                                 palIdx:3 },
+            { icon:"⭐", label:"Điểm TB",                  val: avgScore>0?avgScore.toFixed(2)+"/5":"—",    palIdx:4, col:kpiCol },
+            { icon:"🔝", label:"Điểm cao nhất",            val: maxScore>0?maxScore+"/5":"—",               palIdx:5 },
+            { icon:"🔻", label:"Điểm thấp nhất",           val: minScore>0?minScore+"/5":"—",               palIdx:6 },
+            { icon:"🏆", label:"Xếp loại",                 val: kpiLabel,                                   palIdx:7, col:kpiCol, glow:kpiGlow },
+          ].map((k, idx) => {
+            const col = k.col || KPI_PAL[k.palIdx] || "#7dd3fc";
+            const glow = k.glow || `${col}22`;
+            return (
+              <div key={k.label} style={{
+                background: `linear-gradient(145deg, ${DB.bg2}, ${DB.bg3})`,
+                border:`1.5px solid ${col}40`,
+                borderRadius:14, padding:"18px 12px", textAlign:"center",
+                boxShadow:`0 0 20px ${glow}, inset 0 1px 0 rgba(255,255,255,.04)`,
+                transition:"transform .2s, box-shadow .2s",
+              }}>
+                <div style={{ fontSize:26, marginBottom:8, filter:`drop-shadow(0 0 6px ${col}80)` }}>{k.icon}</div>
+                <div style={{
+                  fontSize: k.label==="Xếp loại"?13 : k.label==="Tổng chỉ mục đánh giá"?20 : 26,
+                  fontWeight:900, color:col,
+                  fontFamily:"'Rajdhani',sans-serif", lineHeight:1.1,
+                  textShadow:`0 0 12px ${col}80`,
+                }}>{k.val}</div>
+                <div style={{ fontSize:10, color:"#7ea8cc", marginTop:6, textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:600 }}>{k.label}</div>
+                {/* Thin glow line */}
+                <div style={{ marginTop:10, height:2, borderRadius:1, background:`linear-gradient(90deg, transparent, ${col}, transparent)`, opacity:.6 }}/>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
-      {/* ─ Bar Chart + Donut ─ */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+      {/* ══ B. BAR CHART + DONUT ══════════════════════════════════ */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 420px", gap:18 }}>
 
-        {/* Bar Chart: Điểm TB theo §4-§10 */}
-        <div style={{ background:"#0c2840", borderRadius:14, border:"1px solid rgba(56,189,248,.2)", padding:20 }}>
-          <div style={{ fontSize:14, fontWeight:700, color:"#60a5fa", marginBottom:4 }}>📊 Điểm trung bình theo điều khoản ISO 50001:2018</div>
-          <div style={{ fontSize:10, color:"#7dd3fc", marginBottom:12, opacity:.8 }}>
-            Trục Y: điểm 1–5 | Nhãn dưới cột: đã đánh giá / tổng tiêu chí
-          </div>
+        {/* Bar Chart */}
+        <div style={card()}>
+          <SectionTitle icon="📊" title="ĐIỂM TRUNG BÌNH THEO NHÓM ĐIỀU KHOẢN ISO 50001:2018"
+            sub="Mỗi cột = 1 nhóm điều khoản §4–§10 · Màu riêng biệt · Nhãn: điểm TB / đã đánh giá / tổng"/>
           {clauseStats.length === 0
-            ? <div style={{ color:"#7dd3fc", textAlign:"center", padding:30 }}>Chưa có dữ liệu.</div>
-            : <svg width="100%" viewBox={`0 0 ${BAR_W} ${BAR_H+44}`} style={{ overflow:"visible" }}>
-                {/* Grid lines */}
+            ? <div style={{ color:"#7ea8cc", textAlign:"center", padding:40, fontSize:13 }}>Chưa có dữ liệu điểm nào.</div>
+            : <svg width="100%" viewBox={`0 0 ${BW} ${BH+56}`} style={{ overflow:"visible" }}>
+                <defs>
+                  {/* Gradient cho từng clause */}
+                  {clauseStats.map(s => {
+                    const cc = CLAUSE_COLORS[s.clause] || { main:"#60a5fa" };
+                    return (
+                      <linearGradient key={s.clause} id={`gbar-${s.clause}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={cc.main} stopOpacity="1"/>
+                        <stop offset="75%" stopColor={cc.main} stopOpacity="0.65"/>
+                        <stop offset="100%" stopColor={cc.main} stopOpacity="0.35"/>
+                      </linearGradient>
+                    );
+                  })}
+                  {/* Grid glow filter */}
+                  <filter id="gridGlow">
+                    <feGaussianBlur stdDeviation="1" result="blur"/>
+                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                  </filter>
+                </defs>
+                {/* Grid lines & Y labels */}
                 {[1,2,3,4,5].map(v => {
-                  const y = (BAR_H-BAR_PAD) - (v/5)*(BAR_H-BAR_PAD*2) + BAR_PAD;
+                  const y = (BH-BP) - (v/5)*(BH-BP*2) + BP;
                   return (<g key={v}>
-                    <line x1={BAR_PAD} y1={y} x2={BAR_W-BAR_PAD} y2={y} stroke="rgba(56,189,248,0.12)" strokeWidth={1} strokeDasharray="4 4"/>
-                    <text x={BAR_PAD-6} y={y+4} textAnchor="end" fontSize={9} fill="#7dd3fc">{v}</text>
+                    <line x1={BP} y1={y} x2={BW-BP} y2={y} stroke="rgba(99,179,237,0.1)" strokeWidth={v===5?1.5:1} strokeDasharray={v===5?"none":"4 4"}/>
+                    <text x={BP-8} y={y+4} textAnchor="end" fontSize={9} fill="#7ea8cc" fontWeight={v===5?700:400}>{v}</text>
                   </g>);
                 })}
+                {/* Target line at avg */}
+                {avgScore > 0 && (() => {
+                  const ay = (BH-BP) - (avgScore/5)*(BH-BP*2) + BP;
+                  return (<g>
+                    <line x1={BP} y1={ay} x2={BW-BP} y2={ay} stroke={kpiCol} strokeWidth={1.5} strokeDasharray="8 4" opacity={0.6}/>
+                    <text x={BW-BP+4} y={ay+4} fontSize={8} fill={kpiCol} fontWeight={700}>TB: {avgScore.toFixed(1)}</text>
+                  </g>);
+                })()}
                 {/* Bars */}
                 {clauseStats.map((s, i) => {
-                  const bh  = s.avg > 0 ? ((s.avg/5)*(BAR_H-BAR_PAD*2)) : 2;
-                  const bx  = BAR_PAD + i*(barW+BAR_GAP);
-                  const by  = BAR_H - BAR_PAD - bh;
-                  const col = SC_COL[Math.round(s.avg)] || "#60a5fa";
-                  const pctBar = s.total > 0 ? Math.round(s.scored/s.total*100) : 0;
+                  const cc  = CLAUSE_COLORS[s.clause] || { main:"#60a5fa" };
+                  const bh  = s.avg > 0 ? (s.avg/5)*(BH-BP*2) : 2;
+                  const bx  = BP + i*(bW+GAP);
+                  const by  = BH - BP - bh;
+                  const pctB = s.total > 0 ? Math.round(s.scored/s.total*100) : 0;
                   return (<g key={s.clause}>
-                    {/* Bar with gradient */}
-                    <defs>
-                      <linearGradient id={`bg${s.clause}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={col} stopOpacity="1"/>
-                        <stop offset="100%" stopColor={col} stopOpacity="0.55"/>
-                      </linearGradient>
-                    </defs>
-                    <rect x={bx} y={by} width={barW} height={bh} fill={`url(#bg${s.clause})`} rx={4}/>
-                    {/* Avg label on top */}
-                    <text x={bx+barW/2} y={by-5} textAnchor="middle" fontSize={11} fill={col} fontWeight="700">
+                    {/* Glow base */}
+                    {s.avg > 0 && <rect x={bx} y={by} width={bW} height={bh} fill={cc.main} rx={5} opacity={0.12} transform="translate(0,3)"/>}
+                    {/* Main bar */}
+                    <rect x={bx} y={by} width={bW} height={bh} fill={`url(#gbar-${s.clause})`} rx={5}/>
+                    {/* Top highlight */}
+                    <rect x={bx+2} y={by} width={bW-4} height={3} fill={cc.main} rx={2} opacity={0.6}/>
+                    {/* Average label on top */}
+                    <text x={bx+bW/2} y={by-8} textAnchor="middle" fontSize={11} fill={cc.main} fontWeight="800"
+                      filter={`drop-shadow(0 0 4px ${cc.main}60)`}>
                       {s.avg>0?s.avg.toFixed(1):"—"}
                     </text>
-                    {/* Clause label */}
-                    <text x={bx+barW/2} y={BAR_H-BAR_PAD+14} textAnchor="middle" fontSize={11} fill="#c5e8fd" fontWeight="700">§{s.clause}</text>
+                    {/* Clause badge */}
+                    <rect x={bx} y={BH-BP+4} width={bW} height={15} fill={`${cc.main}25`} rx={3}/>
+                    <text x={bx+bW/2} y={BH-BP+15} textAnchor="middle" fontSize={10} fill={cc.main} fontWeight="800">§{s.clause}</text>
                     {/* scored/total */}
-                    <text x={bx+barW/2} y={BAR_H-BAR_PAD+26} textAnchor="middle" fontSize={9} fill="#7dd3fc">{s.scored}/{s.total}</text>
-                    {/* % completion */}
-                    <text x={bx+barW/2} y={BAR_H-BAR_PAD+38} textAnchor="middle" fontSize={8} fill={s.scored===s.total?"#2dd4bf":"#f59e0b"}>{pctBar}%</text>
+                    <text x={bx+bW/2} y={BH-BP+30} textAnchor="middle" fontSize={8.5} fill="#7ea8cc">{s.scored}/{s.total}</text>
+                    {/* completion % */}
+                    <text x={bx+bW/2} y={BH-BP+42} textAnchor="middle" fontSize={8} fill={pctB===100?"#22c55e":"#fb923c"} fontWeight="700">{pctB}%</text>
                   </g>);
                 })}
-                <line x1={BAR_PAD} y1={BAR_H-BAR_PAD} x2={BAR_W-BAR_PAD} y2={BAR_H-BAR_PAD} stroke="rgba(56,189,248,0.3)" strokeWidth={1}/>
+                {/* X axis */}
+                <line x1={BP} y1={BH-BP} x2={BW-BP} y2={BH-BP} stroke="rgba(99,179,237,0.35)" strokeWidth={1.5}/>
               </svg>
           }
         </div>
 
-        {/* Donut Chart: Phân bố điểm (chỉ tính 1-5) */}
-        <div style={{ background:"#0c2840", borderRadius:14, border:"1px solid rgba(56,189,248,.2)", padding:20 }}>
-          <div style={{ fontSize:14, fontWeight:700, color:"#60a5fa", marginBottom:4 }}>🍩 Phân bố Điểm đánh giá (mức 1–5)</div>
-          <div style={{ fontSize:10, color:"#7dd3fc", marginBottom:12, opacity:.8 }}>
-            Chỉ hiển thị các tiêu chí ĐÃ đánh giá — {notScored} tiêu chí chưa đánh giá không tính vào biểu đồ
-          </div>
+        {/* Donut Chart */}
+        <div style={card()}>
+          <SectionTitle icon="🍩" title="PHÂN BỐ ĐIỂM (1–5)"
+            sub={`${allScored.length} TC đã đánh giá · ${notScored} TC chưa đánh giá`}/>
           {donutTotal === 0
-            ? <div style={{ color:"#7dd3fc", textAlign:"center", padding:30 }}>Chưa có dữ liệu.</div>
-            : <div style={{ display:"flex", gap:16, alignItems:"center", flexWrap:"wrap" }}>
-                <svg width={180} height={180} viewBox="0 0 180 180">
-                  {donutSegs.map((seg, i) => <path key={i} d={seg.path} fill={seg.col} opacity={0.87}/>)}
-                  <circle cx={DONUT_CX} cy={DONUT_CY} r={36} fill="#0c2840"/>
-                  <text x={DONUT_CX} y={DONUT_CY-4} textAnchor="middle" fontSize={18} fill="#f8fcff" fontWeight="800" fontFamily="Rajdhani,sans-serif">{avgScore>0?avgScore.toFixed(1):"—"}</text>
-                  <text x={DONUT_CX} y={DONUT_CY+9} textAnchor="middle" fontSize={8} fill="#7dd3fc">Điểm TB</text>
-                  <text x={DONUT_CX} y={DONUT_CY+19} textAnchor="middle" fontSize={7} fill="#7dd3fc">{allScored.length} TC</text>
-                </svg>
-                <div style={{ display:"flex", flexDirection:"column", gap:5, flex:1, minWidth:100 }}>
-                  {donutDist.filter(d=>d.count>0).map(d => (
-                    <div key={d.score} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                      <div style={{ width:10, height:10, borderRadius:"50%", background:d.col, flexShrink:0 }}/>
-                      <div style={{ fontSize:11, color:"#c5e8fd", flex:1 }}>{d.score} — {d.label}</div>
-                      <div style={{ fontSize:11, fontWeight:700, color:d.col }}>{d.count}</div>
-                    </div>
+            ? <div style={{ color:"#7ea8cc", textAlign:"center", padding:30, fontSize:13 }}>Chưa có dữ liệu.</div>
+            : <div style={{ display:"flex", flexDirection:"column", gap:12, alignItems:"center" }}>
+                <svg width={184} height={184} viewBox="0 0 184 184">
+                  <defs>
+                    <filter id="donutShadow">
+                      <feDropShadow dx="0" dy="0" stdDeviation="4" floodOpacity="0.4"/>
+                    </filter>
+                  </defs>
+                  {/* Background circle */}
+                  <circle cx={DCX} cy={DCY} r={DR+2} fill="none" stroke="rgba(99,179,237,0.1)" strokeWidth={2}/>
+                  {donutSegs.map((seg, i) => (
+                    <g key={i}>
+                      <path d={seg.path} fill={seg.main} opacity={0.9}/>
+                      {/* Shine */}
+                      <path d={seg.path} fill="url(#donutShine)" opacity={0.15}/>
+                    </g>
                   ))}
+                  <defs>
+                    <radialGradient id="donutShine" cx="40%" cy="30%">
+                      <stop offset="0%" stopColor="#fff" stopOpacity="0.5"/>
+                      <stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+                    </radialGradient>
+                    <radialGradient id="donutBg">
+                      <stop offset="0%" stopColor={DB.bg1}/>
+                      <stop offset="100%" stopColor={DB.bg2}/>
+                    </radialGradient>
+                  </defs>
+                  {/* Inner circle */}
+                  <circle cx={DCX} cy={DCY} r={40} fill="url(#donutBg)"/>
+                  <circle cx={DCX} cy={DCY} r={40} fill="none" stroke="rgba(99,179,237,0.2)" strokeWidth={1}/>
+                  {/* Center text */}
+                  <text x={DCX} y={DCY-7} textAnchor="middle" fontSize={22} fill="#e2f0ff"
+                    fontWeight="900" fontFamily="Rajdhani,sans-serif"
+                    style={{ filter:`drop-shadow(0 0 8px ${kpiCol})` }}>
+                    {avgScore>0?avgScore.toFixed(1):"—"}
+                  </text>
+                  <text x={DCX} y={DCY+7} textAnchor="middle" fontSize={8} fill={kpiCol} fontWeight={700}>Điểm TB</text>
+                  <text x={DCX} y={DCY+18} textAnchor="middle" fontSize={7} fill="#7ea8cc">{allScored.length} TC</text>
+                </svg>
+
+                {/* Legend */}
+                <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:6 }}>
+                  {donutDist.filter(d=>d.count>0).map(d => {
+                    const pct = donutTotal > 0 ? (d.count/donutTotal*100).toFixed(0) : 0;
+                    return (
+                      <div key={d.score} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <div style={{ width:10, height:10, borderRadius:3, background:d.main, flexShrink:0, boxShadow:`0 0 6px ${d.main}80` }}/>
+                        <div style={{ fontSize:11, color:"#c4ddee", flex:1, fontWeight:500 }}>{d.score} — {d.label}</div>
+                        <div style={{ fontSize:11, fontWeight:800, color:d.main, minWidth:22, textAlign:"right" }}>{d.count}</div>
+                        <div style={{ fontSize:10, color:"#7ea8cc", minWidth:32, textAlign:"right" }}>{pct}%</div>
+                      </div>
+                    );
+                  })}
                   {notScored > 0 && (
-                    <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4, paddingTop:4, borderTop:"1px solid rgba(56,189,248,.15)" }}>
-                      <div style={{ width:10, height:10, borderRadius:"50%", background:"#718096", flexShrink:0 }}/>
-                      <div style={{ fontSize:11, color:"#7dd3fc", flex:1 }}>0 — Chưa đánh giá</div>
-                      <div style={{ fontSize:11, fontWeight:700, color:"#718096" }}>{notScored}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, paddingTop:6, borderTop:`1px solid rgba(99,179,237,.12)`, marginTop:2 }}>
+                      <div style={{ width:10, height:10, borderRadius:3, background:"#64748b", flexShrink:0 }}/>
+                      <div style={{ fontSize:11, color:"#7ea8cc", flex:1 }}>0 — Chưa đánh giá</div>
+                      <div style={{ fontSize:11, fontWeight:800, color:"#64748b" }}>{notScored}</div>
                     </div>
                   )}
                 </div>
@@ -257,138 +370,231 @@ function DashboardPanel({ checklist, resp, clauseGroups }) {
         </div>
       </div>
 
-      {/* ─ Radar + Summary Table ─ */}
-      <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:16 }}>
+      {/* ══ C. RADAR + SUMMARY TABLE ══════════════════════════════ */}
+      <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", gap:18 }}>
 
-        {/* Radar Chart */}
-        <div style={{ background:"#0c2840", borderRadius:14, border:"1px solid rgba(56,189,248,.2)", padding:16 }}>
-          <div style={{ fontSize:14, fontWeight:700, color:"#60a5fa", marginBottom:4 }}>🕸️ Biểu đồ mạng nhện §4–§10</div>
-          <div style={{ fontSize:10, color:"#7dd3fc", marginBottom:10, opacity:.8 }}>So sánh tổng thể 7 nhóm điều khoản</div>
-          {radarPoints.length < 3
-            ? <div style={{ color:"#7dd3fc", fontSize:12, textAlign:"center", padding:20 }}>Cần ≥ 3 điều khoản có dữ liệu.</div>
-            : <svg width="100%" viewBox={`0 0 ${CX*2} ${CY*2}`} style={{ overflow:"visible" }}>
-                {/* Grid polygons */}
-                {gridLevels.map(lv => (
-                  <polygon key={lv} fill="none" stroke="rgba(56,189,248,0.15)" strokeWidth={1}
-                    points={clauseStats.map((_,i)=>{ const p=getRadarPt(i,lv); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(" ")}/>
+        {/* Radar */}
+        <div style={card()}>
+          <SectionTitle icon="🕸️" title="BIỂU ĐỒ MẠNG NHỆN"
+            sub="So sánh 7 nhóm điều khoản §4–§10"/>
+          {rPts.length < 3
+            ? <div style={{ color:"#7ea8cc", fontSize:12, textAlign:"center", padding:24 }}>Cần ≥ 3 điều khoản có dữ liệu.</div>
+            : <svg width="100%" viewBox={`0 0 ${RCX*2} ${RCY*2}`} style={{ overflow:"visible" }}>
+                <defs>
+                  <radialGradient id="radarFill">
+                    <stop offset="0%" stopColor={kpiCol} stopOpacity="0.3"/>
+                    <stop offset="100%" stopColor={kpiCol} stopOpacity="0.05"/>
+                  </radialGradient>
+                </defs>
+                {/* Grid levels */}
+                {[0.2,0.4,0.6,0.8,1.0].map(lv => (
+                  <polygon key={lv} fill="none"
+                    stroke={lv===1?"rgba(99,179,237,.3)":"rgba(99,179,237,.12)"}
+                    strokeWidth={lv===1?1.5:1}
+                    points={clauseStats.map((_,i)=>{ const p=rPt(i,lv); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(" ")}/>
                 ))}
                 {/* Axes */}
-                {clauseStats.map((_,i)=>{ const p=getRadarPt(i,1); return <line key={i} x1={CX} y1={CY} x2={p.x.toFixed(1)} y2={p.y.toFixed(1)} stroke="rgba(56,189,248,.2)" strokeWidth={1}/>; })}
-                {/* Data polygon */}
-                {radarPath && <polygon points={radarPoints.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} fill="#60a5fa22" stroke="#60a5fa" strokeWidth={2}/>}
-                {/* Dots */}
-                {radarPoints.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r={4} fill={SC_COL[Math.round(clauseStats[i]?.avg||0)]||"#60a5fa"}/>)}
+                {clauseStats.map((s,i)=>{ const p=rPt(i,1); const cc=CLAUSE_COLORS[s.clause]?.main||"#7ee8fa"; return <line key={i} x1={RCX} y1={RCY} x2={p.x.toFixed(1)} y2={p.y.toFixed(1)} stroke={cc} strokeWidth={1} opacity={0.3}/>; })}
+                {/* Filled area */}
+                {rPath && <polygon points={rPts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} fill="url(#radarFill)" stroke={kpiCol} strokeWidth={2}/>}
+                {/* Data dots */}
+                {rPts.map((p,i)=>{
+                  const cc=CLAUSE_COLORS[clauseStats[i]?.clause]?.main||"#60a5fa";
+                  return (<g key={i}>
+                    <circle cx={p.x} cy={p.y} r={6} fill={cc} opacity={0.25}/>
+                    <circle cx={p.x} cy={p.y} r={4} fill={cc} stroke={DB.bg0} strokeWidth={1.5}/>
+                  </g>);
+                })}
                 {/* Labels */}
-                {labelPts.map((p,i)=><text key={i} x={p.x.toFixed(1)} y={p.y.toFixed(1)} textAnchor="middle" fontSize={11} fill="#c5e8fd" fontWeight="700">{p.label}</text>)}
-                {/* Grid level numbers */}
-                {gridLevels.map(lv=>{ const p=getRadarPt(0,lv); return <text key={lv} x={p.x+4} y={p.y} fontSize={8} fill="#7dd3fc">{(lv*5).toFixed(0)}</text>; })}
+                {rLabels.map((p,i)=>(
+                  <text key={i} x={p.x.toFixed(1)} y={p.y.toFixed(1)} textAnchor="middle" fontSize={11}
+                    fill={p.col} fontWeight="800" style={{ filter:`drop-shadow(0 0 4px ${p.col}60)` }}>§{clauseStats[i].clause}</text>
+                ))}
+                {/* Level numbers */}
+                {[0.2,0.4,0.6,0.8,1.0].map(lv=>{ const p=rPt(0,lv); return <text key={lv} x={p.x+5} y={p.y-2} fontSize={8} fill="#7ea8cc">{(lv*5).toFixed(0)}</text>; })}
               </svg>
           }
+
+          {/* Clause color legend */}
+          <div style={{ marginTop:14, display:"flex", flexDirection:"column", gap:5, borderTop:`1px solid ${DB.border}`, paddingTop:12 }}>
+            {clauseStats.map(s => {
+              const cc = CLAUSE_COLORS[s.clause]?.main || "#7dd3fc";
+              const sc = SCORE_PAL[Math.round(s.avg)];
+              return (
+                <div key={s.clause} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <div style={{ width:10, height:10, borderRadius:2, background:cc, flexShrink:0, boxShadow:`0 0 5px ${cc}` }}/>
+                  <div style={{ fontSize:10, color:cc, fontWeight:700, minWidth:20 }}>§{s.clause}</div>
+                  <div style={{ fontSize:10, color:"#c4ddee", flex:1 }}>{s.name}</div>
+                  {s.avg > 0 && <div style={{ fontSize:10, fontWeight:800, color:sc?.main||"#7dd3fc" }}>{s.avg.toFixed(1)}</div>}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Summary Table */}
-        <div style={{ background:"#0c2840", borderRadius:14, border:"1px solid rgba(56,189,248,.2)", padding:16, overflowX:"auto" }}>
-          <div style={{ fontSize:14, fontWeight:700, color:"#60a5fa", marginBottom:4 }}>📋 Tổng hợp điểm theo điều khoản ISO 50001:2018 (§4–§10)</div>
-          <div style={{ fontSize:10, color:"#7dd3fc", marginBottom:12, opacity:.8 }}>
-            Điểm TB = tổng điểm / số tiêu chí ĐÃ đánh giá (điểm 1–5). Tỷ lệ = đã đánh giá/tổng × 100%.
+        <div style={card({ padding:0, overflow:"hidden" })}>
+          <div style={{ padding:"18px 22px 14px", borderBottom:`1px solid ${DB.border}`, background:DB.bg3 }}>
+            <SectionTitle icon="📋" title="BẢNG TỔNG HỢP ĐIỂM THEO ĐIỀU KHOẢN ISO 50001:2018"
+              sub="Điểm TB = tổng điểm / số chỉ mục ĐÃ đánh giá · Tỷ lệ = đánh giá/tổng · Cập nhật realtime"/>
           </div>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-            <thead>
-              <tr style={{ background:"#163d62" }}>
-                {["§","Nhóm điều khoản ISO 50001:2018","Tổng TC","Đánh giá","Điểm TB","Xếp loại","Thanh điểm"].map(h=>(
-                  <th key={h} style={{ padding:"8px 10px", textAlign:"left", color:"#c5e8fd", fontWeight:700, fontSize:11, whiteSpace:"nowrap", borderBottom:"1px solid rgba(56,189,248,.2)" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {clauseStats.map((s, i) => {
-                const col = SC_COL[Math.round(s.avg)] || "#718096";
-                const pctAvg = (s.avg / 5) * 100;
-                const pctCom = s.total > 0 ? (s.scored / s.total) * 100 : 0;
-                return (
-                  <tr key={s.clause} style={{ background:i%2?"rgba(22,61,98,.3)":"transparent", borderBottom:"1px solid rgba(56,189,248,.08)" }}>
-                    <td style={{ padding:"8px 10px", fontFamily:"'Fira Code',monospace", color:"#60a5fa", fontWeight:700 }}>§{s.clause}</td>
-                    <td style={{ padding:"8px 10px", color:"#f8fcff" }}>{s.name}</td>
-                    <td style={{ padding:"8px 10px", color:"#c5e8fd", textAlign:"center" }}>{s.total}</td>
-                    <td style={{ padding:"8px 10px", textAlign:"center" }}>
-                      <span style={{ color:s.scored===s.total?"#2dd4bf":"#f59e0b", fontWeight:700 }}>{s.scored}</span>
-                      <span style={{ color:"#7dd3fc" }}>/{s.total}</span>
-                      <span style={{ color:"#7dd3fc", fontSize:9, marginLeft:3 }}>({Math.round(pctCom)}%)</span>
-                    </td>
-                    <td style={{ padding:"8px 10px", textAlign:"center" }}>
-                      <span style={{ color:col, fontWeight:800, fontSize:14, fontFamily:"'Rajdhani',sans-serif" }}>{s.avg>0?s.avg.toFixed(2):"—"}</span>
-                      <span style={{ color:"#7dd3fc", fontSize:10 }}>/5</span>
-                    </td>
-                    <td style={{ padding:"8px 10px" }}>
-                      <span style={{ display:"inline-block", padding:"2px 8px", borderRadius:5, background:`${col}20`, color:col, fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>
-                        {s.avg===0?"Chưa đánh giá":SC_LBL_FULL[Math.round(s.avg)]}
-                      </span>
-                    </td>
-                    <td style={{ padding:"8px 10px", minWidth:100 }}>
-                      <div style={{ height:8, borderRadius:4, background:"rgba(56,189,248,.12)", overflow:"hidden" }}>
-                        <div style={{ height:"100%", width:`${pctAvg}%`, background:`linear-gradient(90deg,${col},${col}aa)`, borderRadius:4, transition:"width .4s" }}/>
-                      </div>
-                      <div style={{ fontSize:9, color:"#7dd3fc", marginTop:2, textAlign:"right" }}>{pctAvg.toFixed(0)}%</div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {/* Total row */}
-              <tr style={{ background:"#113352", borderTop:"2px solid rgba(56,189,248,.3)", fontWeight:700 }}>
-                <td colSpan={3} style={{ padding:"10px", color:"#c5e8fd", textAlign:"right", fontWeight:700 }}>📊 Tổng cộng / Trung bình</td>
-                <td style={{ padding:"10px", textAlign:"center" }}>
-                  <span style={{ color:"#2dd4bf", fontWeight:800 }}>{allScored.length}</span>
-                  <span style={{ color:"#7dd3fc" }}>/{checklist.length}</span>
-                  <span style={{ color:pctDone===100?"#2dd4bf":"#f59e0b", fontSize:9, marginLeft:3 }}>({pctDone}%)</span>
-                </td>
-                <td style={{ padding:"10px", textAlign:"center" }}>
-                  <span style={{ fontSize:16, fontWeight:800, color:kpiCol, fontFamily:"'Rajdhani',sans-serif" }}>{avgScore>0?avgScore.toFixed(2):"—"}</span>
-                  <span style={{ color:"#7dd3fc", fontSize:10 }}>/5</span>
-                </td>
-                <td style={{ padding:"10px" }}>
-                  <span style={{ display:"inline-block", padding:"3px 10px", borderRadius:5, background:`${kpiCol}25`, color:kpiCol, fontSize:11, fontWeight:800 }}>
-                    {kpiLabel}
-                  </span>
-                </td>
-                <td style={{ padding:"10px", minWidth:100 }}>
-                  <div style={{ height:10, borderRadius:5, background:"rgba(56,189,248,.12)", overflow:"hidden" }}>
-                    <div style={{ height:"100%", width:`${(avgScore/5)*100}%`, background:`linear-gradient(90deg,${kpiCol},#2dd4bf)`, borderRadius:5 }}/>
-                  </div>
-                  <div style={{ fontSize:9, color:"#7dd3fc", marginTop:2, textAlign:"right" }}>{((avgScore/5)*100).toFixed(0)}%</div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead>
+                <tr style={{ background:"#0a1f38" }}>
+                  {["§","Nhóm điều khoản ISO 50001:2018","Tổng","Đánh giá","Điểm TB","Tỷ lệ","Xếp loại","Thanh điểm"].map(h=>(
+                    <th key={h} style={{ padding:"10px 12px", textAlign:"left", color:"#a8c8e8", fontWeight:700, fontSize:10, letterSpacing:"0.05em", textTransform:"uppercase", borderBottom:`2px solid rgba(99,179,237,.25)`, whiteSpace:"nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {clauseStats.map((s, idx) => {
+                  const cc   = CLAUSE_COLORS[s.clause] || { main:"#7dd3fc" };
+                  const sc   = SCORE_PAL[Math.round(s.avg)] || SCORE_PAL[0];
+                  const pctA = (s.avg/5)*100;
+                  const pctC = s.total > 0 ? (s.scored/s.total)*100 : 0;
+                  return (
+                    <tr key={s.clause} style={{
+                      background: idx%2 ? `rgba(14,31,56,.6)` : "transparent",
+                      borderBottom:`1px solid rgba(99,179,237,.07)`,
+                      transition:"background .2s",
+                    }}>
+                      {/* § badge */}
+                      <td style={{ padding:"10px 12px" }}>
+                        <div style={{
+                          display:"inline-flex", alignItems:"center", justifyContent:"center",
+                          width:34, height:34, borderRadius:8,
+                          background:`${cc.main}18`, border:`1.5px solid ${cc.main}50`,
+                          color:cc.main, fontWeight:900, fontSize:13, fontFamily:"'Fira Code',monospace",
+                          boxShadow:`0 0 10px ${cc.main}30`,
+                        }}>§{s.clause}</div>
+                      </td>
+                      <td style={{ padding:"10px 12px", color:"#d4eaf9", fontWeight:500, lineHeight:1.3 }}>
+                        {s.name}
+                        <div style={{ fontSize:9, color:"#7ea8cc", marginTop:2 }}>{CLAUSE_COLORS[s.clause]?.name||""}</div>
+                      </td>
+                      <td style={{ padding:"10px 12px", textAlign:"center", color:"#7ea8cc", fontSize:13, fontWeight:700 }}>{s.total}</td>
+                      <td style={{ padding:"10px 12px", textAlign:"center" }}>
+                        <div style={{ fontWeight:800, fontSize:13 }}>
+                          <span style={{ color: pctC===100?"#22c55e":"#fb923c" }}>{s.scored}</span>
+                          <span style={{ color:"#7ea8cc" }}>/{s.total}</span>
+                        </div>
+                        <div style={{ fontSize:8.5, color:pctC===100?"#22c55e":"#fb923c", marginTop:1 }}>{Math.round(pctC)}%</div>
+                      </td>
+                      <td style={{ padding:"10px 12px", textAlign:"center" }}>
+                        <div style={{ fontSize:18, fontWeight:900, color:sc.main, fontFamily:"'Rajdhani',sans-serif", textShadow:`0 0 10px ${sc.main}60` }}>
+                          {s.avg>0?s.avg.toFixed(2):"—"}
+                        </div>
+                        <div style={{ fontSize:9, color:"#7ea8cc" }}>/5.0</div>
+                      </td>
+                      <td style={{ padding:"10px 12px", textAlign:"center" }}>
+                        <div style={{ fontSize:12, color:cc.main, fontWeight:700 }}>{s.scored>0?Math.round(pctC)+"%":"—"}</div>
+                      </td>
+                      <td style={{ padding:"10px 12px" }}>
+                        <span style={{
+                          display:"inline-block", padding:"3px 10px", borderRadius:20,
+                          background:sc.bg, border:`1px solid ${sc.border}`,
+                          color:sc.main, fontSize:10, fontWeight:700, whiteSpace:"nowrap",
+                        }}>
+                          {s.avg===0?"Chưa đánh giá":sc.label}
+                        </span>
+                      </td>
+                      <td style={{ padding:"10px 12px", minWidth:120 }}>
+                        {/* Score bar */}
+                        <div style={{ height:7, borderRadius:4, background:"rgba(99,179,237,.1)", overflow:"hidden", marginBottom:2 }}>
+                          <div style={{
+                            height:"100%", width:`${pctA}%`,
+                            background:`linear-gradient(90deg, ${sc.main}cc, ${sc.main})`,
+                            borderRadius:4, transition:"width .5s cubic-bezier(.4,0,.2,1)",
+                            boxShadow:`0 0 8px ${sc.main}80`,
+                          }}/>
+                        </div>
+                        {/* Completion bar */}
+                        <div style={{ height:4, borderRadius:2, background:"rgba(99,179,237,.06)", overflow:"hidden" }}>
+                          <div style={{ height:"100%", width:`${pctC}%`, background:`${cc.main}60`, borderRadius:2, transition:"width .5s" }}/>
+                        </div>
+                        <div style={{ fontSize:8, color:"#7ea8cc", marginTop:2, display:"flex", justifyContent:"space-between" }}>
+                          <span>Điểm: {pctA.toFixed(0)}%</span>
+                          <span>Hoàn thành: {Math.round(pctC)}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* Total row */}
+                <tr style={{ background:`linear-gradient(90deg, #0a1f38, #0e2540)`, borderTop:`2px solid rgba(99,179,237,.3)` }}>
+                  <td colSpan={3} style={{ padding:"12px 16px", color:"#a8c8e8", fontWeight:700, textAlign:"right", fontSize:11, letterSpacing:"0.04em" }}>
+                    📊 TỔNG CỘNG / TRUNG BÌNH
+                  </td>
+                  <td style={{ padding:"12px 16px", textAlign:"center" }}>
+                    <span style={{ color:"#22c55e", fontWeight:900, fontSize:14 }}>{allScored.length}</span>
+                    <span style={{ color:"#7ea8cc" }}>/{checklist.length}</span>
+                    <div style={{ fontSize:9, color:pctDone===100?"#22c55e":"#fb923c", marginTop:1 }}>({pctDone}%)</div>
+                  </td>
+                  <td style={{ padding:"12px 16px", textAlign:"center" }}>
+                    <div style={{ fontSize:22, fontWeight:900, color:kpiCol, fontFamily:"'Rajdhani',sans-serif", textShadow:`0 0 14px ${kpiCol}` }}>
+                      {avgScore>0?avgScore.toFixed(2):"—"}
+                    </div>
+                    <div style={{ fontSize:9, color:"#7ea8cc" }}>/5.0</div>
+                  </td>
+                  <td style={{ padding:"12px 16px", textAlign:"center" }}>
+                    <div style={{ fontSize:13, color:kpiCol, fontWeight:800 }}>{pctDone}%</div>
+                  </td>
+                  <td colSpan={2} style={{ padding:"12px 16px" }}>
+                    <span style={{
+                      display:"inline-block", padding:"5px 16px", borderRadius:20,
+                      background:`${kpiCol}18`, border:`2px solid ${kpiCol}50`,
+                      color:kpiCol, fontSize:13, fontWeight:900, letterSpacing:"0.05em",
+                      boxShadow:`0 0 16px ${kpiGlow}`,
+                    }}>🏆 {kpiLabel}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      {/* ─ Score Distribution Table ─ */}
-      <div style={{ background:"#0c2840", borderRadius:14, border:"1px solid rgba(56,189,248,.2)", padding:16 }}>
-        <div style={{ fontSize:14, fontWeight:700, color:"#60a5fa", marginBottom:4 }}>📊 Phân bố điểm chi tiết (mức 0–5)</div>
-        <div style={{ fontSize:10, color:"#7dd3fc", marginBottom:12, opacity:.8 }}>
-          Điểm 0 = tiêu chí chưa nhập điểm | Mức 1–5 theo thang đánh giá ISO 50001:2018
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:8 }}>
+      {/* ══ D. SCORE DISTRIBUTION CARDS ══════════════════════════ */}
+      <section>
+        <SectionTitle icon="📊" title="PHÂN BỐ ĐIỂM CHI TIẾT (MỨC 0–5)"
+          sub="Điểm 0 = chưa nhập điểm · Mức 1–5 tương ứng mức độ tuân thủ ISO 50001:2018"/>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:12 }}>
           {scoreDist.map(d => {
-            const pct = checklist.length > 0 ? (d.count / checklist.length * 100) : 0;
+            const pct = checklist.length > 0 ? d.count/checklist.length*100 : 0;
             return (
-              <div key={d.score} style={{ background:`${d.col}10`, border:`1.5px solid ${d.col}35`, borderRadius:10, padding:"12px 8px", textAlign:"center" }}>
-                <div style={{ fontSize:20, fontWeight:800, color:d.col, fontFamily:"'Rajdhani',sans-serif" }}>{d.count}</div>
-                <div style={{ fontSize:10, color:d.col, fontWeight:700, marginTop:2 }}>Điểm {d.score}</div>
-                <div style={{ fontSize:9, color:"#7dd3fc", marginTop:2, lineHeight:1.3 }}>{d.label}</div>
-                <div style={{ marginTop:6, height:6, borderRadius:3, background:"rgba(56,189,248,.1)", overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:`${pct}%`, background:d.col, borderRadius:3 }}/>
+              <div key={d.score} style={{
+                background:`linear-gradient(145deg, ${DB.bg2}, ${DB.bg3})`,
+                border:`1.5px solid ${d.border}`,
+                borderRadius:14, padding:"16px 10px", textAlign:"center",
+                boxShadow:`0 0 16px ${d.bg}, inset 0 1px 0 rgba(255,255,255,.03)`,
+              }}>
+                <div style={{ fontSize:26, fontWeight:900, color:d.main, fontFamily:"'Rajdhani',sans-serif", textShadow:`0 0 14px ${d.main}80`, lineHeight:1 }}>{d.count}</div>
+                <div style={{
+                  display:"inline-block", margin:"6px 0 4px", padding:"2px 8px", borderRadius:12,
+                  background:d.bg, border:`1px solid ${d.border}`, color:d.main, fontSize:11, fontWeight:700,
+                }}>Điểm {d.score}</div>
+                <div style={{ fontSize:9.5, color:"#7ea8cc", lineHeight:1.4, minHeight:26 }}>{d.label}</div>
+                {/* Pct bar */}
+                <div style={{ marginTop:8, height:6, borderRadius:3, background:"rgba(99,179,237,.08)", overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${d.main}aa,${d.main})`, borderRadius:3, boxShadow:`0 0 6px ${d.main}80`, transition:"width .5s" }}/>
                 </div>
-                <div style={{ fontSize:8, color:"#7dd3fc", marginTop:2 }}>{pct.toFixed(1)}%</div>
+                <div style={{ fontSize:9, color:d.main, marginTop:4, fontWeight:700 }}>{pct.toFixed(1)}%</div>
               </div>
             );
           })}
         </div>
-      </div>
+      </section>
 
     </div>
   );
 }
+
+
+
+
+
+
 
 /** Lấy điều khoản chính từ checklist */
 function getClauseGroups(checklist) {
