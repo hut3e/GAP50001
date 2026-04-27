@@ -13,6 +13,12 @@ const { Server } = require("socket.io");
 const fs = require("fs");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const {
+  hmacResponseSigner,
+  createAuditLog,
+  securityHeaders,
+  blockSwagger,
+} = require("./middleware/security");
 
 const jwt = require("jsonwebtoken");
 
@@ -52,12 +58,18 @@ const MONGO_OPTIONS = { serverSelectionTimeoutMS: 8000, maxPoolSize: 10 };
 const app = express();
 app.set("trust proxy", 1); // Trust Nginx reverse proxy (cho rate-limiter đọc đúng IP client)
 
-// ── Security Hardening ──
+// ── Security Hardening (ISO 27001 A.14.1.2) ──
 app.use(helmet({
   contentSecurityPolicy: false, // SPA frontend
   crossOriginEmbedderPolicy: false,
+  hsts: { maxAge: 31536000, includeSubDomains: true },
 }));
 app.disable("x-powered-by");
+
+// ── ISO 27001 Security Middleware ──
+app.use(securityHeaders);       // A.14.1.2 — Enhanced security headers
+app.use(blockSwagger);          // A.9.1.2  — Block API docs in production
+app.use(hmacResponseSigner);    // A.10.1.1 — HMAC-SHA256 response integrity
 
 // ── Rate Limiting (ISO 27001 A.9.4.2 — Secure log-on procedures) ──
 // Login: nghiêm ngặt — chống brute force
@@ -137,15 +149,18 @@ app.use((err, req, res, next) => {
 
 const getDbName = () => mongoose.connection.db?.databaseName || (MONGODB_URI.match(/\/([^/?]+)(\?|$)/) || [null, "iso50001gap"])[1];
 
-app.get("/health", (_req, res) =>
+app.get("/health", (_req, res) => {
+  // Remove sensitive headers from health response
+  res.removeHeader("Server");
+  res.removeHeader("X-Powered-By");
   res.json({
     status: "ok",
     service: "ISO 50001 GAP Survey API",
     mongo: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
     database: getDbName(),
     note: "Database xuất hiện trong MongoDB Compass sau khi Lưu phiên khảo sát lần đầu.",
-  })
-);
+  });
+});
 
 app.get("/api/info", (_req, res) =>
   res.json({

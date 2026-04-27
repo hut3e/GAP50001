@@ -42,13 +42,16 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD env var is required}
       POSTGRES_DB: ${POSTGRES_DB:-iso50001gap}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET env var is required}
-      CORS_ORIGIN: ${CORS_ORIGIN:-"https://103.81.84.233:8888,http://103.81.84.233:8888,http://localhost:8888"}
+      HMAC_SECRET: ${HMAC_SECRET:-${JWT_SECRET}}
+      CORS_ORIGIN: ${CORS_ORIGIN:-"http://103.81.84.233:8888,https://103.81.84.233:8888,http://localhost:8888,http://localhost:3001"}
       # Admin seed credentials (used only on first boot if no users exist)
       SEED_ADMIN_USER: ${SEED_ADMIN_USER:-}
       SEED_ADMIN_PASS: ${SEED_ADMIN_PASS:-}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
     depends_on:
       mongo:
+        condition: service_healthy
+      iso50001-postgres:
         condition: service_healthy
     volumes:
       - ./backend/uploads:/app/uploads

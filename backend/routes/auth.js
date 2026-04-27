@@ -16,6 +16,7 @@ const crypto  = require("crypto");
 const bcrypt  = require("bcryptjs");
 const User    = require("../models/User");
 const { signToken, authRequired, adminRequired } = require("../middleware/auth");
+const { createAuditLog } = require("../middleware/security");
 
 const router = express.Router();
 const SALT_ROUNDS = 12;
@@ -132,6 +133,13 @@ router.post("/login", async (req, res) => {
         console.warn(`[Auth] Account locked: ${user.username} (${user.failedLoginCount} failed attempts)`);
       }
       await user.save();
+      // ISO 27001 A.12.4.1 — Audit log for failed login
+      createAuditLog("LOGIN_FAILED", {
+        username: user.username,
+        ip: req.ip || req.headers["x-forwarded-for"] || "unknown",
+        failedCount: user.failedLoginCount,
+        locked: user.failedLoginCount >= MAX_FAILED_ATTEMPTS,
+      });
       return res.status(401).json({
         error: "Mật khẩu không đúng.",
         remaining: Math.max(0, MAX_FAILED_ATTEMPTS - user.failedLoginCount),
@@ -152,6 +160,13 @@ router.post("/login", async (req, res) => {
     await user.save();
 
     const token = signToken(user);
+    // ISO 27001 A.12.4.1 — Audit log for successful login
+    createAuditLog("LOGIN_SUCCESS", {
+      username: user.username,
+      ip: req.ip || req.headers["x-forwarded-for"] || "unknown",
+      role: user.role,
+      loginCount: user.loginCount,
+    });
     res.json({
       token,
       user: {
@@ -212,6 +227,12 @@ router.put("/change-password", authRequired, async (req, res) => {
       action: "password_change",
     });
     await user.save();
+    // ISO 27001 A.12.4.1 — Audit log for password change
+    createAuditLog("PASSWORD_CHANGE", {
+      username: user.username,
+      ip: req.ip || req.headers["x-forwarded-for"] || "unknown",
+      changedBy: req.user.username,
+    });
     res.json({ ok: true, message: "Đã đổi mật khẩu thành công." });
   } catch (err) {
     res.status(500).json({ error: err.message });
